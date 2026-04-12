@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siscop - Control de Préstamos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-100 pb-20">
+
+    <!-- Header / Barra Superior -->
+    <header class="bg-blue-600 text-white p-4 shadow-lg sticky top-0 z-50">
+        <div class="flex justify-between items-center">
+            <h1 id="page-title" class="text-xl font-bold">Dashboard</h1>
+            <button id="btn-logout" class="hidden"><i class="fas fa-sign-out-alt"></i></button>
+        </div>
+    </header>
+
+    <!-- Contenedor Principal (Donde cambiarán las pantallas) -->
+    <main id="main-content" class="p-4">
+        <!-- Pantalla de Carga Inicial -->
+        <div id="loading" class="flex justify-center items-center h-64">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+    </main>
+
+    <!-- Navegación Inferior (Estilo App Móvil) -->
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around p-2 text-gray-600 shadow-inner hidden">
+        <button onclick="router('dashboard')" class="flex flex-col items-center p-2 text-blue-600">
+            <i class="fas fa-home"></i>
+            <span class="text-xs">Inicio</span>
+        </button>
+        <button onclick="router('clientes')" class="flex flex-col items-center p-2">
+            <i class="fas fa-users"></i>
+            <span class="text-xs">Clientes</span>
+        </button>
+        <button onclick="router('prestamos')" class="flex flex-col items-center p-2">
+            <i class="fas fa-hand-holding-usd"></i>
+            <span class="text-xs">Préstamos</span>
+        </button>
+        <button onclick="router('cobros')" class="flex flex-col items-center p-2">
+            <i class="fas fa-calendar-check"></i>
+            <span class="text-xs">Cobros</span>
+        </button>
+    </nav>
+
+    <!-- Scripts -->
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
