@@ -12,19 +12,34 @@ const pageTitle = document.getElementById('page-title');
 const bottomNav = document.getElementById('bottom-nav');
 const btnLogout = document.getElementById('btn-logout');
 
-// --- SISTEMA DE NAVEGACIÓN ---
+// --- SISTEMA DE NAVEGACIÓN INTELIGENTE (RECUERDA LA PÁGINA) ---
 window.router = (route) => {
-    mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>`;
-    if (route === 'dashboard') uiDashboard();
-    if (route === 'clientes') uiClientes();
-    if (route === 'prestamos') uiPrestamos();
+    // Si no viene ruta, buscamos en la URL (#) o por defecto dashboard
+    const currentRoute = route || window.location.hash.replace('#', '') || 'dashboard';
+    
+    // Actualizar la URL sin recargar para que el navegador recuerde
+    if (route) window.location.hash = route;
+
+    mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>`;
+    
+    if (currentRoute === 'dashboard') uiDashboard();
+    if (currentRoute === 'clientes') uiClientes();
+    if (currentRoute === 'prestamos') uiPrestamos();
+    if (currentRoute.startsWith('perfil-')) {
+        const id = currentRoute.split('-')[1];
+        // Buscamos los datos básicos del cliente guardados o recargamos
+        uiCargarPerfilDesdeURL(id);
+    }
 };
+
+// Escuchar cuando el usuario pulsa "Atrás" o cambia la URL manualmente
+window.addEventListener('hashchange', () => router());
 
 onAuthStateChanged(auth, (user) => {
     if (user) { 
         bottomNav.classList.remove('hidden'); 
         btnLogout.classList.remove('hidden'); 
-        router('dashboard'); 
+        router(); // Llama al router para ver dónde estaba el usuario
     } else { 
         bottomNav.classList.add('hidden'); 
         btnLogout.classList.add('hidden'); 
@@ -32,13 +47,14 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// --- VISTA: LOGIN ---
 function uiLogin() {
-    pageTitle.innerText = "Siscop - Entrar";
+    pageTitle.innerText = "Entrar";
     mainContent.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-[2rem] shadow-xl mt-6 text-center border-b-4 border-blue-600">
             <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
             <form id="f-login" class="space-y-4">
-                <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
+                <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
                 <input type="password" id="log-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
                 <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Ingresar</button>
             </form>
@@ -46,11 +62,11 @@ function uiLogin() {
     document.getElementById('f-login').onsubmit = async (e) => {
         e.preventDefault();
         try { await signInWithEmailAndPassword(auth, document.getElementById('log-email').value, document.getElementById('log-pass').value); } 
-        catch (error) { alert("Acceso denegado"); }
+        catch (error) { alert("Error de acceso"); }
     };
 }
 
-// --- DASHBOARD (Saldos Reales) ---
+// --- VISTA: DASHBOARD ---
 async function uiDashboard() {
     pageTitle.innerText = "Inicio";
     mainContent.innerHTML = `
@@ -85,7 +101,7 @@ async function uiDashboard() {
     document.getElementById('d-cobrado').innerText = `$${cob.toFixed(2)}`;
 }
 
-// --- CLIENTES ---
+// --- VISTA: CLIENTES ---
 function uiClientes() {
     pageTitle.innerText = "Clientes";
     mainContent.innerHTML = `
@@ -100,8 +116,8 @@ function uiClientes() {
                     <h3 class="font-black text-center uppercase text-gray-700">Nuevo Cliente</h3>
                     <input type="text" id="n-nom" placeholder="Nombre" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
                     <input type="tel" id="n-tel" placeholder="WhatsApp" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase shadow-lg">Guardar</button>
-                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-xs uppercase mt-2">Cerrar</button>
+                    <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase shadow-lg">Guardar Cliente</button>
+                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-[10px] uppercase mt-2">Cerrar</button>
                 </form>
             </div>
         </div>`;
@@ -112,7 +128,7 @@ function uiClientes() {
         snap.forEach(d => {
             const c = d.data();
             cont.innerHTML += `
-            <div class="bg-white p-5 rounded-[2rem] border flex justify-between items-center mb-2 shadow-sm active:bg-gray-50" onclick="verPerfil('${d.id}', '${c.nombre}', '${c.telefono}')">
+            <div class="bg-white p-5 rounded-[2rem] border flex justify-between items-center mb-2 shadow-sm animate-nudge active:bg-gray-50" onclick="router('perfil-${d.id}')">
                 <div class="flex-1">
                     <p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p>
                     <p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p>
@@ -130,8 +146,22 @@ function uiClientes() {
     };
 }
 
-// --- PERFIL Y CALCULADORA (IGUAL A TU FOTO) ---
+// --- FUNCIÓN PARA CARGAR PERFIL DESDE URL (REFRESCO) ---
+async function uiCargarPerfilDesdeURL(id) {
+    const cliDoc = await getDoc(doc(db, "clientes", id));
+    if (cliDoc.exists()) {
+        const c = cliDoc.data();
+        verPerfil(id, c.nombre, c.telefono);
+    } else {
+        router('clientes');
+    }
+}
+
+// --- VISTA: PERFIL Y CALCULADORA ---
 window.verPerfil = async (id, nombre, telefono) => {
+    // Cambiamos el hash de la URL para que si refresca se quede aquí
+    window.location.hash = `perfil-${id}`;
+    
     pageTitle.innerText = "Perfil";
     mainContent.innerHTML = `
         <div class="space-y-4 pb-24 px-2">
@@ -149,8 +179,8 @@ window.verPerfil = async (id, nombre, telefono) => {
             <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
                 <form id="f-p-final" class="space-y-3">
                     <h3 class="font-black text-center text-gray-700 uppercase mb-4">Nuevo Préstamo</h3>
-                    <input type="number" id="p-m" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
-                    <input type="number" id="p-i" value="20" placeholder="Interés %" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                    <input type="number" id="p-m" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none focus:border-blue-600" required>
+                    <input type="number" id="p-i" value="20" placeholder="Interés %" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none focus:border-blue-600" required>
                     <input type="number" id="p-c" value="20" placeholder="Cuotas" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
                     <select id="p-mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none">
                         <option value="Diario">Diario</option><option value="Semanal">Semanal</option><option value="Quincenal">Quincenal</option><option value="Mensual">Mensual</option>
@@ -185,7 +215,7 @@ window.verPerfil = async (id, nombre, telefono) => {
             modalidad: document.getElementById('p-mod').value, estado: "activo", 
             cobradorId: auth.currentUser.uid, fecha: new Date()
         });
-        alert("PRÉSTAMO CREADO"); uiPrestamos();
+        alert("PRÉSTAMO CREADO"); router('prestamos');
     };
 
     const snapP = await getDocs(query(collection(db, "prestamos"), where("clienteId", "==", id), where("estado", "==", "activo")));
@@ -215,26 +245,26 @@ window.regAbono = async (pId, cId, cNom, cTel) => {
     alert("PAGO REGISTRADO"); verPerfil(cId, cNom, cTel);
 };
 
-// --- HISTORIAL ---
+// --- VISTA: HISTORIAL ---
 async function uiPrestamos() {
     pageTitle.innerText = "Historial";
-    mainContent.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), orderBy("fecha", "desc")));
-    const cont = document.getElementById('l-his');
-    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">Sin registros</p>`; return; }
+    const cont = document.getElementById('main-content');
+    cont.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
+    if(snap.empty) { document.getElementById('l-his').innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">Sin registros</p>`; return; }
     
     for (const d of snap.docs) {
         const p = d.data();
         const cliS = await getDoc(doc(db, "clientes", p.clienteId));
         const nombre = cliS.exists() ? cliS.data().nombre : "Desconocido";
-        cont.innerHTML += `
+        document.getElementById('l-his').innerHTML += `
         <div class="bg-white p-6 rounded-[2rem] shadow-sm border flex justify-between items-center mb-3">
-            <div>
+            <div class="flex-1 cursor-pointer" onclick="router('perfil-${p.clienteId}')">
                 <p class="text-blue-600 font-black uppercase text-[10px] tracking-widest">${nombre}</p>
                 <p class="text-xl font-black text-gray-800">$${p.totalConInteres.toFixed(2)}</p>
                 <p class="text-[9px] font-bold text-gray-400 uppercase">Saldo: $${p.saldoActual.toFixed(2)} | ${p.modalidad}</p>
             </div>
-            <button onclick="deleteP('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash-alt"></i></button>
+            <button onclick="deleteP('${d.id}')" class="bg-red-50 text-red-400 w-12 h-12 rounded-2xl flex items-center justify-center text-lg"><i class="fas fa-trash-alt"></i></button>
         </div>`;
     }
 }
