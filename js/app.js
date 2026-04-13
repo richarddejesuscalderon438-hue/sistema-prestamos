@@ -118,21 +118,39 @@ function renderClientes() {
     };
 }
 
+
 async function cargarClientes() {
     const cont = document.getElementById('lista-c');
-    const snap = await getDocs(query(collection(db, "clientes"), where("cobradorId", "==", auth.currentUser.uid), orderBy("nombre", "asc")));
-    cont.innerHTML = "";
-    snap.forEach(d => {
-        const c = d.data();
-        cont.innerHTML += `
-        <div class="bg-white p-4 rounded-2xl border flex justify-between items-center mb-2 shadow-sm animate-nudge active:bg-gray-50" onclick="verPerfil('${d.id}', '${c.nombre}', '${c.telefono}')">
-            <div class="flex-1">
-                <p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p>
-                <p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p>
-            </div>
-            <i class="fas fa-chevron-right text-blue-600"></i>
-        </div>`;
-    });
+    try {
+        // Quitamos el orderBy temporalmente para que no pida índice
+        const q = query(
+            collection(db, "clientes"), 
+            where("cobradorId", "==", auth.currentUser.uid)
+        );
+        
+        const snap = await getDocs(q);
+        cont.innerHTML = "";
+
+        if (snap.empty) {
+            cont.innerHTML = `<p class="text-center py-10 text-gray-400">No hay clientes aún.</p>`;
+            return;
+        }
+
+        snap.forEach(d => {
+            const c = d.data();
+            cont.innerHTML += `
+            <div class="tarjeta-cliente bg-white p-4 rounded-2xl border flex justify-between items-center mb-2 shadow-sm animate-nudge active:bg-gray-50" onclick="verPerfil('${d.id}', '${c.nombre}', '${c.telefono}')">
+                <div class="flex-1 cursor-pointer">
+                    <p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p>
+                    <p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p>
+                </div>
+                <i class="fas fa-chevron-right text-blue-600"></i>
+            </div>`;
+        });
+    } catch (e) { 
+        console.error("Error al cargar:", e);
+        cont.innerHTML = `<p class="text-red-500 text-center text-xs">Error de conexión. Revisa la consola.</p>`;
+    }
 }
 
 // --- PERFIL CLIENTE Y PRÉSTAMOS ---
