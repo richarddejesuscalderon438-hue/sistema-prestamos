@@ -38,11 +38,11 @@ function renderLogin() {
     pageTitle.innerText = "Siscop - Entrar";
     mainContent.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl mt-10 text-center">
-            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
+            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic tracking-tighter">Siscop</h2>
             <form id="login-form" class="space-y-4">
                 <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
                 <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg uppercase tracking-widest">Entrar</button>
+                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg uppercase tracking-widest active:scale-95 transition-all">Entrar</button>
             </form>
         </div>
     `;
@@ -53,7 +53,7 @@ function renderLogin() {
     };
 }
 
-// --- DASHBOARD: LÓGICA DE SALDOS REALES ---
+// --- DASHBOARD: SALDOS REALES ---
 async function renderDashboard() {
     pageTitle.innerText = "Resumen de Negocio";
     mainContent.innerHTML = `
@@ -75,8 +75,8 @@ async function renderDashboard() {
                 <p id="s-total" class="text-xl font-black text-red-600">$0.00</p>
             </div>
         </div>
-        <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-3xl font-black shadow-xl mb-4 flex items-center justify-center gap-3">
-             <i class="fas fa-calendar-check text-2xl"></i> VER COBROS DEL DÍA
+        <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-3xl font-black shadow-xl mb-4 flex items-center justify-center gap-3 active:scale-95 transition-all">
+             <i class="fas fa-calendar-check text-2xl"></i> COBROS DE HOY
         </button>
     `;
 
@@ -86,15 +86,12 @@ async function renderDashboard() {
     let cobHoy = 0, porCobHoy = 0, ganTotal = 0, deudaCalle = 0;
 
     snapC.forEach(d => {
-        const c = d.data();
-        const f = c.fecha.toDate(); f.setHours(0,0,0,0);
-        
+        const c = d.data(); const f = c.fecha.toDate(); f.setHours(0,0,0,0);
         if (c.estado === "pendiente") {
             deudaCalle += c.monto;
             if (f.getTime() === hoy.getTime()) porCobHoy += c.monto;
         } else if (c.estado === "pagado") {
             if (f.getTime() === hoy.getTime()) cobHoy += c.monto;
-            // Cálculo ganancia (interés proporcional)
             ganTotal += c.monto * 0.166; 
         }
     });
@@ -114,7 +111,6 @@ function renderClientes() {
             <button onclick="abrirModalCliente()" class="bg-blue-600 text-white p-4 rounded-2xl shadow-lg"><i class="fas fa-user-plus"></i></button>
         </div>
         <div id="lista-c" class="space-y-3 pb-24"></div>
-        
         <div id="mod-c" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-3xl w-full max-w-md p-6">
                 <form id="f-c" class="space-y-4">
@@ -158,52 +154,58 @@ async function cargarClientes() {
     });
 }
 
-// --- PERFIL CLIENTE: SALDOS Y CUOTAS ---
+// --- PERFIL CLIENTE: LÓGICA DE MODALIDADES ---
 window.verDetalleCliente = async (id, nombre, telefono) => {
     pageTitle.innerText = nombre;
     mainContent.innerHTML = `
         <div class="space-y-4 pb-24">
             <div class="bg-white p-6 rounded-3xl shadow-xl text-center">
                 <h3 class="font-black text-xl text-gray-700 uppercase mb-4">${nombre}</h3>
-                <div class="bg-gray-50 p-4 rounded-2xl mb-4 flex justify-around border">
+                <div class="bg-gray-50 p-4 rounded-2xl mb-4 flex justify-around border shadow-inner">
                     <div class="text-center">
-                        <p class="text-[9px] font-black text-gray-400 uppercase">Pagado</p>
-                        <p id="c-pagado" class="font-black text-green-600">$0.00</p>
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recuperado</p>
+                        <p id="c-pagado" class="font-black text-green-600 text-lg">$0.00</p>
                     </div>
                     <div class="text-center border-l pl-4">
-                        <p class="text-[9px] font-black text-gray-400 uppercase">Pendiente</p>
-                        <p id="c-pendiente" class="font-black text-red-600">$0.00</p>
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pendiente</p>
+                        <p id="c-pendiente" class="font-black text-red-600 text-lg">$0.00</p>
                     </div>
                 </div>
                 <div class="flex gap-2">
-                    <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs">+ NUEVO PRÉSTAMO</button>
-                    <a href="https://wa.me/${telefono}" class="flex-1 bg-green-500 text-white p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2"><i class="fab fa-whatsapp text-lg"></i> WHATSAPP</a>
+                    <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs shadow-lg">+ PRÉSTAMO</button>
+                    <a href="https://wa.me/${telefono}" class="flex-1 bg-green-500 text-white p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg"><i class="fab fa-whatsapp text-lg"></i> WHATSAPP</a>
                 </div>
             </div>
-            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Plan de Pagos Activo</h4>
+            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Cuotas Pendientes</h4>
             <div id="lista-cuotas-cliente" class="space-y-2"></div>
         </div>
 
         <div id="mod-p" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                 <form id="f-p" class="space-y-3">
-                    <h3 class="font-black text-center text-gray-700 uppercase">Crear Préstamo</h3>
+                    <h3 class="font-black text-center text-gray-700 uppercase mb-2">Nuevo Préstamo</h3>
                     <input type="hidden" id="pid" value="${id}">
-                    <label class="text-[10px] font-black text-gray-400 uppercase">Monto ($)</label>
-                    <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase">Interés (%)</label>
-                    <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase">Cuotas</label>
-                    <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase">Frecuencia</label>
-                    <select id="p_mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50">
-                        <option value="diario">Diario</option>
-                        <option value="semanal">Semanal</option>
-                        <option value="mensual">Mensual</option>
+                    
+                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Monto Entregado ($)</label>
+                    <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
+                    
+                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Interés (%)</label>
+                    <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
+                    
+                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Cantidad de Cuotas</label>
+                    <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
+                    
+                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Modalidad de Cobro</label>
+                    <select id="p_mod" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500">
+                        <option value="diario">Cobro Diario</option>
+                        <option value="semanal">Cobro Semanal</option>
+                        <option value="quincenal">Cobro Quincenal (15 días)</option>
+                        <option value="mensual">Cobro Mensual</option>
                     </select>
-                    <div id="p_r" class="bg-blue-600 text-white p-4 rounded-xl text-center font-black text-lg">Total: $0.00</div>
-                    <button type="submit" id="btn-p" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Crear</button>
-                    <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold">Cerrar</button>
+                    
+                    <div id="p_r" class="bg-blue-600 text-white p-4 rounded-xl text-center font-black text-lg shadow-md mt-2">Total: $0.00</div>
+                    <button type="submit" id="btn-p" class="w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase mt-2 shadow-lg">Crear Préstamo</button>
+                    <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-xs">Cerrar</button>
                 </form>
             </div>
         </div>
@@ -214,65 +216,56 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
     ii.oninput = im.oninput;
     document.getElementById('f-p').onsubmit = guardarPrestamo;
     
-    // Calcular Saldos del Cliente Específico
     const snapC = await getDocs(query(collection(db, "cuotas"), where("clienteId", "==", id), orderBy("n", "asc")));
     const contC = document.getElementById('lista-cuotas-cliente');
     let pagado = 0, pendiente = 0;
-    
     contC.innerHTML = "";
     snapC.forEach(d => {
         const c = d.data();
-        if (c.estado === "pagado") {
-            pagado += c.monto;
-        } else {
+        if (c.estado === "pagado") { pagado += c.monto; } 
+        else {
             pendiente += c.monto;
             contC.innerHTML += `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2 animate-nudge">
                     <div>
-                        <p class="font-black text-gray-400 text-[9px]">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p>
+                        <p class="font-black text-gray-400 text-[9px] uppercase tracking-tighter">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p>
                         <p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
                     </div>
-                    <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px]">COBRAR</button>
+                    <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px] shadow-md">COBRAR</button>
                 </div>`;
         }
     });
-    
     document.getElementById('c-pagado').innerText = `$${pagado.toFixed(2)}`;
     document.getElementById('c-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 };
 
-// --- FUNCIÓN DE COBRO (ESTA ES LA CLAVE) ---
+// --- FUNCIÓN DE COBRO ---
 window.registrarCobro = async (id, cid, cnom, ctel, monto, n) => {
     if (!confirm(`¿Cobrar Cuota #${n} de $${monto}?`)) return;
-    
-    // Solo actualizamos esta cuota específica
     await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
-    
-    // Recibo automático WhatsApp
-    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cnom}%0A💰 *Cuota Pagada:* $${monto}%0A🔢 *Cuota Nro:* ${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Saldo actualizado en sistema.*`;
+    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cnom}%0A💰 *Cuota Pagada:* $${monto}%0A🔢 *Cuota Nro:* ${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Gracias por su puntualidad.*`;
     window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
-    
     verDetalleCliente(cid, cnom, ctel);
 };
 
-// --- RESTO DE MÓDULOS (PRESTAMOS, COBROS, MOROSOS) ---
+// --- OTROS MÓDULOS ---
 async function renderPrestamos() {
-    pageTitle.innerText = "Todos los Préstamos";
-    mainContent.innerHTML = `<div id="lista-p" class="space-y-4 pb-24"></div>`;
+    pageTitle.innerText = "Historial General";
+    mainContent.innerHTML = `<div id="lista-p" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lista-p');
-    if (snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 uppercase font-black text-xs">Sin registros</p>`; return; }
-    for (const d of snap.docs) {
+    if (snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black text-xs uppercase italic">Sin registros</p>`; return; }
+    snap.forEach(async d => {
         const p = d.data(); const cliSnap = await getDoc(doc(db, "clientes", p.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border mb-3 flex justify-between items-center">
-            <div><p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">${cliSnap.data().nombre}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p><p class="text-[8px] font-bold text-gray-400 uppercase">Cap: $${p.monto} | Int: ${p.interes}%</p></div>
+            <div><p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">${cliSnap.data() ? cliSnap.data().nombre : 'Borrado'}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p><p class="text-[8px] font-bold text-gray-400 uppercase">${p.modalidad || 'Diario'}</p></div>
             <button onclick="eliminarPrestamo('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
         </div>`;
-    }
+    });
 }
 
 window.eliminarPrestamo = async (id) => {
-    if (!confirm("¿Eliminar préstamo?")) return;
+    if (!confirm("¿Eliminar?")) return;
     await deleteDoc(doc(db, "prestamos", id));
     const s = await getDocs(query(collection(db, "cuotas"), where("prestamoId", "==", id)));
     s.forEach(async (c) => await deleteDoc(doc(db, "cuotas", c.id)));
@@ -280,17 +273,17 @@ window.eliminarPrestamo = async (id) => {
 };
 
 async function renderCobros() {
-    pageTitle.innerText = "Hoy";
+    pageTitle.innerText = "Agenda de Hoy";
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lc');
-    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs">Día libre🏖️</p>`; return; }
+    if(snap.empty) { cont.innerHTML = `<div class="text-center py-20 opacity-30"><i class="fas fa-check-circle text-6xl mb-4"></i><p class="font-black uppercase text-xs">Día completo</p></div>`; return; }
     for (const d of snap.docs) {
         const cuota = d.data(); const cliSnap = await getDoc(doc(db, "clientes", cuota.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center">
             <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-blue-600 font-black text-2xl">$${cuota.monto.toFixed(2)}</p></div>
-            <button onclick="registrarCobro('${d.id}', '${cuota.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${cuota.monto.toFixed(2)}', '${cuota.n}')" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
+            <button onclick="registrarCobro('${d.id}', '${cuota.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${cuota.monto.toFixed(2)}', '${cuota.n}')" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg">COBRAR</button>
         </div>`;
     }
 }
@@ -301,12 +294,12 @@ async function renderMorosos() {
     mainContent.innerHTML = `<div id="lm" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "<", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lm');
-    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs">Todo al día👏</p>`; return; }
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs italic">Nadie debe nada</p>`; return; }
     for (const d of snap.docs) {
         const c = d.data(); const cliSnap = await getDoc(doc(db, "clientes", c.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-red-600 flex justify-between items-center">
             <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-red-600 font-black text-2xl">$${c.monto.toFixed(2)}</p></div>
-            <button onclick="registrarCobro('${d.id}', '${c.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
+            <button onclick="registrarCobro('${d.id}', '${c.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white h-12 px-6 rounded-2xl font-black shadow-lg">COBRAR</button>
         </div>`;
     }
 }
@@ -322,6 +315,7 @@ async function guardarPrestamo(e) {
             let f = new Date(); f.setHours(0,0,0,0);
             if (mod === "diario") f.setDate(f.getDate() + j);
             else if (mod === "semanal") f.setDate(f.getDate() + (j * 7));
+            else if (mod === "quincenal") f.setDate(f.getDate() + (j * 15));
             else if (mod === "mensual") f.setMonth(f.getMonth() + j);
             await addDoc(collection(db, "cuotas"), { prestamoId: pref.id, clienteId: cid, n: j, monto: vc, fecha: Timestamp.fromDate(f), estado: "pendiente", cobradorId: auth.currentUser.uid });
         }
