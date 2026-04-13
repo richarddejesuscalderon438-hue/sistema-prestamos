@@ -16,6 +16,8 @@ const btnLogout = document.getElementById('btn-logout');
 window.router = (route) => {
     const currentRoute = route || window.location.hash.replace('#', '') || 'dashboard';
     if (route) window.location.hash = route;
+    
+    // LIMPIEZA TOTAL DEL CONTENIDO ANTES DE CARGAR
     mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>`;
     
     if (currentRoute === 'dashboard') uiDashboard();
@@ -26,30 +28,36 @@ window.router = (route) => {
 };
 
 window.addEventListener('hashchange', () => router());
+
 onAuthStateChanged(auth, (user) => {
-    if (user) { bottomNav.classList.remove('hidden'); btnLogout.classList.remove('hidden'); router(); } 
-    else { bottomNav.classList.add('hidden'); btnLogout.classList.add('hidden'); uiLogin(); }
+    if (user) { 
+        bottomNav.classList.remove('hidden'); btnLogout.classList.remove('hidden'); 
+        router(); 
+    } else { 
+        bottomNav.classList.add('hidden'); btnLogout.classList.add('hidden'); 
+        uiLogin(); 
+    }
 });
 
 function uiLogin() {
     pageTitle.innerText = "Entrar";
     mainContent.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-[2rem] shadow-xl mt-6 text-center border-b-4 border-blue-600">
-            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
+            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic tracking-tighter">Siscop</h2>
             <form id="f-login" class="space-y-4">
                 <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
                 <input type="password" id="log-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase shadow-lg">Ingresar</button>
+                <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Entrar</button>
             </form>
         </div>`;
     document.getElementById('f-login').onsubmit = async (e) => {
         e.preventDefault();
         try { await signInWithEmailAndPassword(auth, document.getElementById('log-email').value, document.getElementById('log-pass').value); } 
-        catch (error) { alert("Acceso denegado"); }
+        catch (error) { alert("Usuario o clave incorrectos"); }
     };
 }
 
-// --- DASHBOARD (MATEMÁTICA CORREGIDA) ---
+// --- DASHBOARD (CORREGIDO SIN DUPLICADOS) ---
 async function uiDashboard() {
     pageTitle.innerText = "Inicio";
     mainContent.innerHTML = `
@@ -64,11 +72,11 @@ async function uiDashboard() {
             </div>
         </div>
         <div class="px-2 space-y-4">
-            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black shadow-xl flex items-center justify-between active:scale-95 transition-all">
-                <span>RUTA DE COBRO</span>
+            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-[2rem] font-black shadow-xl flex items-center justify-between uppercase active:scale-95 transition-all">
+                <span>Ruta de Cobro</span>
                 <i class="fas fa-calendar-check text-xl"></i>
             </button>
-            <button onclick="router('clientes')" class="w-full bg-white border-2 p-6 rounded-[2rem] font-black text-gray-700 flex items-center justify-between active:scale-95 transition-all uppercase text-xs">
+            <button onclick="router('clientes')" class="w-full bg-white border-2 p-6 rounded-[2rem] font-black text-gray-700 flex items-center justify-between uppercase text-xs active:scale-95 transition-all">
                 <span>Gestionar Clientes</span>
                 <i class="fas fa-users text-xl text-blue-600"></i>
             </button>
@@ -76,36 +84,32 @@ async function uiDashboard() {
         <h4 class="text-[10px] font-black text-gray-400 uppercase mt-8 mb-4 ml-2 tracking-widest text-center">Actividad de Hoy</h4>
         <div id="historial-abonos" class="space-y-2 pb-24 px-2"></div>`;
 
-    // 1. Calcular "En la Calle"
     const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "activo")));
     let totCalle = 0; snapP.forEach(d => totCalle += d.data().saldoActual || 0);
     document.getElementById('d-total').innerText = `$${totCalle.toFixed(2)}`;
 
-    // 2. Calcular "Cobrado Hoy" (Busqueda de Abonos)
     const snapA = await getDocs(query(collection(db, "abonos"), where("cobradorId", "==", auth.currentUser.uid)));
     let cobHoy = 0; 
     const hoyStr = new Date().toDateString();
     const contH = document.getElementById('historial-abonos');
-    contH.innerHTML = "";
+    contH.innerHTML = ""; // ASEGURAR LIMPIEZA
 
-    snapA.forEach(async d => {
+    for (const d of snapA.docs) {
         const a = d.data();
         if(a.fecha.toDate().toDateString() === hoyStr) {
             cobHoy += a.monto;
-            // Actualizar el número en pantalla inmediatamente
-            document.getElementById('d-cobrado').innerText = `$${cobHoy.toFixed(2)}`;
-            
-            // Cargar nombre para la lista
             const pS = await getDoc(doc(db, "prestamos", a.prestamoId));
             const cS = await getDoc(doc(db, "clientes", pS.data().clienteId));
+            
             contH.innerHTML += `
                 <div class="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
                     <p class="font-bold text-gray-700 text-xs uppercase">${cS.data().nombre}</p>
                     <p class="font-black text-green-600">$${a.monto.toFixed(2)}</p>
                 </div>`;
         }
-    });
-    if(cobHoy === 0) contH.innerHTML = `<p class="text-center text-gray-300 text-[10px] uppercase py-4">No hay cobros hoy</p>`;
+    }
+    document.getElementById('d-cobrado').innerText = `$${cobHoy.toFixed(2)}`;
+    if(cobHoy === 0) contH.innerHTML = `<p class="text-center text-gray-300 text-[10px] uppercase py-4 tracking-widest">No hay cobros hoy</p>`;
 }
 
 // --- CLIENTES ---
@@ -120,11 +124,11 @@ function uiClientes() {
         <div id="m-c" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
                 <form id="f-c-nuevo" class="space-y-4">
-                    <h3 class="font-black text-center uppercase text-gray-700">Nuevo Cliente</h3>
+                    <h3 class="font-black text-center uppercase">Nuevo Cliente</h3>
                     <input type="text" id="n-nom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
                     <input type="tel" id="n-tel" placeholder="WhatsApp" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
                     <button type="submit" id="b-save-c" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Guardar</button>
-                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-xs mt-2 uppercase">Cerrar</button>
+                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-xs uppercase mt-2">Cerrar</button>
                 </form>
             </div>
         </div>`;
@@ -147,7 +151,7 @@ function uiClientes() {
     };
 }
 
-// --- PERFIL Y ABONOS (RECIBO ANTERIOR RECUPERADO) ---
+// --- PERFIL ---
 window.verPerfil = async (id, nombre, telefono) => {
     window.location.hash = `perfil-${id}`;
     pageTitle.innerText = "Perfil";
@@ -179,6 +183,7 @@ window.verPerfil = async (id, nombre, telefono) => {
 
     document.getElementById('f-p-final').onsubmit = async (e) => {
         e.preventDefault();
+        const b = document.getElementById('btn-p-save'); b.disabled = true;
         const m = parseFloat(document.getElementById('p-m').value), i = parseFloat(document.getElementById('p-i').value), c = parseInt(document.getElementById('p-c').value);
         const total = m + (m * (i/100));
         let prox = new Date(); prox.setHours(0,0,0,0); prox.setDate(prox.getDate() + 1);
@@ -187,7 +192,7 @@ window.verPerfil = async (id, nombre, telefono) => {
     };
 
     const snapP = await getDocs(query(collection(db, "prestamos"), where("clienteId", "==", id), where("estado", "==", "activo")));
-    const contP = document.getElementById('l-p-c'); contP.innerHTML = "";
+    const contP = document.getElementById('l-p-c'); contP.innerHTML = ""; // LIMPIAR DUPLICADOS
     snapP.forEach(d => {
         const p = d.data();
         contP.innerHTML += `<div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50 text-left">
@@ -202,64 +207,76 @@ window.verPerfil = async (id, nombre, telefono) => {
 };
 
 window.regAbono = async (pId, cId, cNom, cTel) => {
-    const val = document.getElementById(`abono-${pId}`).value;
-    if (!val || parseFloat(val) <= 0) return alert("Escribe un monto");
-    try {
-        const pDoc = doc(db, "prestamos", pId); const snap = await getDoc(pDoc);
-        const pData = snap.data();
-        const nuevoSaldo = (pData.saldoActual || 0) - parseFloat(val);
-        let nProx = pData.proximoPago ? pData.proximoPago.toDate() : new Date();
-        const mod = pData.modalidad || "Diario";
-        if(mod === "Diario") nProx.setDate(nProx.getDate() + 1);
-        else if(mod === "Semanal") nProx.setDate(nProx.getDate() + 7);
-        else if(mod === "Quincenal") nProx.setDate(nProx.getDate() + 15);
-        else if(mod === "Mensual") nProx.setMonth(nProx.getMonth() + 1);
+    const input = document.getElementById(`abono-${pId}`);
+    const monto = parseFloat(input.value);
+    if (!monto || monto <= 0) return alert("Escribe un monto");
+    const pDoc = doc(db, "prestamos", pId); const snap = await getDoc(pDoc);
+    const pData = snap.data();
+    const nuevoSaldo = (pData.saldoActual || 0) - monto;
+    let nProx = pData.proximoPago ? pData.proximoPago.toDate() : new Date();
+    const mod = pData.modalidad || "Diario";
+    if(mod === "Diario") nProx.setDate(nProx.getDate() + 1);
+    else if(mod === "Semanal") nProx.setDate(nProx.getDate() + 7);
+    else if(mod === "Quincenal") nProx.setDate(nProx.getDate() + 15);
+    else if(mod === "Mensual") nProx.setMonth(nProx.getMonth() + 1);
 
-        await updateDoc(pDoc, { saldoActual: nuevoSaldo, estado: nuevoSaldo <= 0 ? "pagado" : "activo", proximoPago: Timestamp.fromDate(nProx) });
-        await addDoc(collection(db, "abonos"), { prestamoId: pId, monto: parseFloat(val), fecha: new Date(), cobradorId: auth.currentUser.uid });
-        
-        // RECIBO DE WHATSAPP (ANTERIOR QUE TE GUSTABA)
-        const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cNom}%0A💰 *Monto:* $${val}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Saldo:* $${nuevoSaldo.toFixed(2)}`;
-        window.open(`https://wa.me/${cTel}?text=${msg}`, '_blank');
-        
-        verPerfil(cId, cNom, cTel);
-    } catch (e) { alert("Error"); }
+    await updateDoc(pDoc, { saldoActual: nuevoSaldo, estado: nuevoSaldo <= 0 ? "pagado" : "activo", proximoPago: Timestamp.fromDate(nProx) });
+    await addDoc(collection(db, "abonos"), { prestamoId: pId, monto, fecha: new Date(), cobradorId: auth.currentUser.uid });
+    
+    // RECIBO DE WHATSAPP SENCILLO (EL QUE TE GUSTABA)
+    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cNom}%0A💰 *Monto:* $${monto}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Saldo:* $${nuevoSaldo.toFixed(2)}`;
+    window.open(`https://wa.me/${cTel}?text=${msg}`, '_blank');
+    verPerfil(cId, cNom, cTel);
 };
+
+// --- HISTORIAL (CORREGIDO SIN DUPLICADOS) ---
+async function uiPrestamos() {
+    pageTitle.innerText = "Historial";
+    mainContent.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
+    const cont = document.getElementById('l-his');
+    cont.innerHTML = ""; // ASEGURAR LIMPIEZA
+    
+    const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">Sin registros</p>`; return; }
+    
+    for (const d of snap.docs) {
+        const p = d.data();
+        const cliS = await getDoc(doc(db, "clientes", p.clienteId));
+        const cNom = cliS.exists() ? cliS.data().nombre : "---";
+        cont.innerHTML += `
+        <div class="bg-white p-6 rounded-[2rem] shadow-sm border flex justify-between items-center mb-3" onclick="router('perfil-${p.clienteId}')">
+            <div>
+                <p class="text-blue-600 font-black uppercase text-[10px] tracking-widest">${cNom}</p>
+                <p class="text-xl font-black text-gray-800">$${(p.totalConInteres || 0).toFixed(2)}</p>
+                <p class="text-[9px] font-bold text-gray-400 uppercase">Saldo: $${(p.saldoActual || 0).toFixed(2)}</p>
+            </div>
+            <button onclick="event.stopPropagation(); deleteP('${d.id}')" class="bg-red-50 text-red-400 w-12 h-12 rounded-2xl flex items-center justify-center text-lg"><i class="fas fa-trash-alt"></i></button>
+        </div>`;
+    }
+}
 
 // --- COBROS ---
 async function uiCobros() {
-    pageTitle.innerText = "Ruta de Hoy";
+    pageTitle.innerText = "Hoy";
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "activo")));
-    const cont = document.getElementById('main-content');
-    cont.innerHTML = `<div id="lc" class="space-y-3 pb-24 px-2"></div>`;
+    mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24 px-2"></div>`;
+    const cont = document.getElementById('lc');
+    cont.innerHTML = ""; // LIMPIAR
+    
     let count = 0;
-    snap.forEach(async d => {
+    for (const d of snap.docs) {
         const p = d.data();
         if (p.proximoPago && p.proximoPago.toDate() <= hoy) {
             count++;
             const cliS = await getDoc(doc(db, "clientes", p.clienteId));
-            document.getElementById('lc').innerHTML += `<div class="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2">
+            cont.innerHTML += `<div class="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2">
                 <div class="flex-1"><p class="font-black text-gray-800 uppercase text-xs">${cliS.data().nombre}</p><p class="text-blue-600 font-black text-xl">$${(p.cuotaMonto || 0).toFixed(2)}</p></div>
                 <button onclick="router('perfil-${p.clienteId}')" class="bg-green-600 text-white h-14 px-6 rounded-2xl font-black text-xs shadow-lg uppercase">Cobrar</button>
             </div>`;
         }
-    });
-}
-
-// --- HISTORIAL ---
-async function uiPrestamos() {
-    pageTitle.innerText = "Historial";
-    const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
-    const cont = document.getElementById('main-content');
-    cont.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
-    snap.forEach(async d => {
-        const p = d.data(); const cliS = await getDoc(doc(db, "clientes", p.clienteId));
-        document.getElementById('l-his').innerHTML += `<div class="bg-white p-6 rounded-[2rem] shadow-sm border flex justify-between items-center mb-3" onclick="router('perfil-${p.clienteId}')">
-            <div><p class="text-blue-600 font-black uppercase text-[10px]">${cliS.data() ? cliS.data().nombre : '---'}</p><p class="text-xl font-black text-gray-800">$${(p.totalConInteres || 0).toFixed(2)}</p><p class="text-[9px] font-bold text-gray-400 uppercase">Saldo: $${(p.saldoActual || 0).toFixed(2)}</p></div>
-            <button onclick="event.stopPropagation(); deleteP('${d.id}')" class="bg-red-50 text-red-400 w-12 h-12 rounded-2xl flex items-center justify-center"><i class="fas fa-trash-alt"></i></button>
-        </div>`;
-    });
+    }
+    if(count === 0) cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">Día libre🏖️</p>`;
 }
 
 async function uiCargarPerfilDesdeURL(id) {
@@ -268,6 +285,6 @@ async function uiCargarPerfilDesdeURL(id) {
     else { router('clientes'); }
 }
 
-window.deleteC = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "clientes", id)); uiClientes(); } };
-window.deleteP = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "prestamos", id)); uiPrestamos(); } };
+window.deleteC = async (id) => { if(confirm("¿Borrar cliente?")) { await deleteDoc(doc(db, "clientes", id)); uiClientes(); } };
+window.deleteP = async (id) => { if(confirm("¿Borrar préstamo?")) { await deleteDoc(doc(db, "prestamos", id)); uiPrestamos(); } };
 btnLogout.onclick = () => signOut(auth);
