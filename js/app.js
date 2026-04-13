@@ -20,6 +20,7 @@ window.router = (route) => {
     if (route === 'prestamos') renderPrestamos();
     if (route === 'cobros') renderCobros();
     if (route === 'morosos') renderMorosos();
+    if (route === 'reportes') renderReportes();
 };
 
 onAuthStateChanged(auth, (user) => {
@@ -42,7 +43,7 @@ function renderLogin() {
             <form id="login-form" class="space-y-4">
                 <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
                 <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg uppercase tracking-widest active:scale-95 transition-all">Entrar</button>
+                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg uppercase active:scale-95 transition-all">Entrar</button>
             </form>
         </div>
     `;
@@ -53,7 +54,7 @@ function renderLogin() {
     };
 }
 
-// --- DASHBOARD: SALDOS REALES ---
+// --- DASHBOARD ---
 async function renderDashboard() {
     pageTitle.innerText = "Resumen de Negocio";
     mainContent.innerHTML = `
@@ -75,16 +76,22 @@ async function renderDashboard() {
                 <p id="s-total" class="text-xl font-black text-red-600">$0.00</p>
             </div>
         </div>
-        <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-3xl font-black shadow-xl mb-4 flex items-center justify-center gap-3 active:scale-95 transition-all">
-             <i class="fas fa-calendar-check text-2xl"></i> COBROS DE HOY
-        </button>
+        <div class="grid grid-cols-1 gap-3">
+            <button onclick="router('cobros')" class="bg-blue-600 text-white p-5 rounded-3xl font-black shadow-xl flex items-center justify-between active:scale-95 transition-all">
+                <div class="flex items-center gap-3"><i class="fas fa-calendar-check text-xl"></i><span>COBROS DE HOY</span></div>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+            <button onclick="router('reportes')" class="bg-white border-2 p-5 rounded-3xl font-black flex items-center justify-between text-gray-700 active:scale-95 transition-all">
+                <div class="flex items-center gap-3"><i class="fas fa-chart-pie text-xl text-blue-600"></i><span>VER REPORTES</span></div>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
     `;
 
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     const snapC = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid)));
     
     let cobHoy = 0, porCobHoy = 0, ganTotal = 0, deudaCalle = 0;
-
     snapC.forEach(d => {
         const c = d.data(); const f = c.fecha.toDate(); f.setHours(0,0,0,0);
         if (c.estado === "pendiente") {
@@ -102,7 +109,53 @@ async function renderDashboard() {
     document.getElementById('s-total').innerText = `$${deudaCalle.toFixed(2)}`;
 }
 
-// --- CLIENTES CON BUSCADOR ---
+// --- MÓDULO REPORTES ---
+async function renderReportes() {
+    pageTitle.innerText = "Estadísticas";
+    mainContent.innerHTML = `<div class="text-center py-20 text-gray-400 font-black uppercase text-xs">Calculando reportes...</div>`;
+    
+    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
+    const snapC = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid)));
+    
+    let totalInvertido = 0, interesProyectado = 0, totalCobrado = 0, prestamosActivos = 0;
+    
+    snapP.forEach(d => {
+        const p = d.data();
+        totalInvertido += p.monto;
+        interesProyectado += (p.total - p.monto);
+        if(p.estado === "activo") prestamosActivos++;
+    });
+
+    snapC.forEach(d => {
+        if(d.data().estado === "pagado") totalCobrado += d.data().monto;
+    });
+
+    mainContent.innerHTML = `
+        <div class="space-y-4 pb-24">
+            <div class="bg-white p-6 rounded-3xl shadow-sm border text-center">
+                <p class="text-[10px] font-black text-gray-400 uppercase mb-1">Capital Histórico Invertido</p>
+                <p class="text-3xl font-black text-blue-600">$${totalInvertido.toFixed(2)}</p>
+            </div>
+            <div class="bg-white p-6 rounded-3xl shadow-sm border text-center">
+                <p class="text-[10px] font-black text-gray-400 uppercase mb-1">Interés Total Proyectado</p>
+                <p class="text-3xl font-black text-orange-500">$${interesProyectado.toFixed(2)}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-3xl border text-center">
+                    <p class="text-[9px] font-black text-gray-400 uppercase">Dinero Recuperado</p>
+                    <p class="text-xl font-black text-green-600">$${totalCobrado.toFixed(2)}</p>
+                </div>
+                <div class="bg-white p-4 rounded-3xl border text-center">
+                    <p class="text-[9px] font-black text-gray-400 uppercase">Préstamos Hechos</p>
+                    <p class="text-xl font-black text-gray-800">${snapP.size}</p>
+                </div>
+            </div>
+            <button onclick="router('dashboard')" class="w-full text-blue-600 font-bold py-4">Volver al Inicio</button>
+        </div>
+    `;
+}
+
+// --- CLIENTES ---
 function renderClientes() {
     pageTitle.innerText = "Mis Clientes";
     mainContent.innerHTML = `
@@ -154,7 +207,7 @@ async function cargarClientes() {
     });
 }
 
-// --- PERFIL CLIENTE: LÓGICA DE MODALIDADES ---
+// --- PERFIL CLIENTE ---
 window.verDetalleCliente = async (id, nombre, telefono) => {
     pageTitle.innerText = nombre;
     mainContent.innerHTML = `
@@ -163,7 +216,7 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
                 <h3 class="font-black text-xl text-gray-700 uppercase mb-4">${nombre}</h3>
                 <div class="bg-gray-50 p-4 rounded-2xl mb-4 flex justify-around border shadow-inner">
                     <div class="text-center">
-                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Recuperado</p>
+                        <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Pagado</p>
                         <p id="c-pagado" class="font-black text-green-600 text-lg">$0.00</p>
                     </div>
                     <div class="text-center border-l pl-4">
@@ -176,36 +229,31 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
                     <a href="https://wa.me/${telefono}" class="flex-1 bg-green-500 text-white p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-lg"><i class="fab fa-whatsapp text-lg"></i> WHATSAPP</a>
                 </div>
             </div>
-            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Cuotas Pendientes</h4>
+            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Detalle de Cuotas</h4>
             <div id="lista-cuotas-cliente" class="space-y-2"></div>
         </div>
 
         <div id="mod-p" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                 <form id="f-p" class="space-y-3">
-                    <h3 class="font-black text-center text-gray-700 uppercase mb-2">Nuevo Préstamo</h3>
+                    <h3 class="font-black text-center text-gray-700 uppercase">Nuevo Préstamo</h3>
                     <input type="hidden" id="pid" value="${id}">
-                    
-                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Monto Entregado ($)</label>
-                    <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
-                    
-                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Interés (%)</label>
-                    <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
-                    
-                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Cantidad de Cuotas</label>
-                    <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500" required>
-                    
-                    <label class="text-[9px] font-black text-gray-500 uppercase ml-1">Modalidad de Cobro</label>
-                    <select id="p_mod" class="w-full p-4 border rounded-xl font-black bg-gray-50 outline-none focus:border-blue-500">
-                        <option value="diario">Cobro Diario</option>
-                        <option value="semanal">Cobro Semanal</option>
-                        <option value="quincenal">Cobro Quincenal (15 días)</option>
-                        <option value="mensual">Cobro Mensual</option>
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Monto Entregado ($)</label>
+                    <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none focus:border-blue-500" required>
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Interés (%)</label>
+                    <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none focus:border-blue-500" required>
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cuotas</label>
+                    <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none focus:border-blue-500" required>
+                    <label class="text-[9px] font-black text-gray-400 uppercase tracking-widest">Modalidad</label>
+                    <select id="p_mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50">
+                        <option value="diario">Diario</option>
+                        <option value="semanal">Semanal</option>
+                        <option value="quincenal">Quincenal</option>
+                        <option value="mensual">Mensual</option>
                     </select>
-                    
-                    <div id="p_r" class="bg-blue-600 text-white p-4 rounded-xl text-center font-black text-lg shadow-md mt-2">Total: $0.00</div>
-                    <button type="submit" id="btn-p" class="w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase mt-2 shadow-lg">Crear Préstamo</button>
-                    <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-xs">Cerrar</button>
+                    <div id="p_r" class="bg-blue-600 text-white p-4 rounded-xl text-center font-black text-lg">Total: $0.00</div>
+                    <button type="submit" id="btn-p" class="w-full bg-green-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Crear</button>
+                    <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-xs py-2">Cerrar</button>
                 </form>
             </div>
         </div>
@@ -222,15 +270,17 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
     contC.innerHTML = "";
     snapC.forEach(d => {
         const c = d.data();
-        if (c.estado === "pagado") { pagado += c.monto; } 
-        else {
+        if (c.estado === "pagado") {
+            pagado += c.monto;
+            contC.innerHTML += `<div class="bg-gray-100 p-4 rounded-2xl flex justify-between items-center opacity-60">
+                <div><p class="font-black text-gray-400 text-[9px] uppercase">CUOTA #${c.n} | PAGADA</p><p class="text-gray-500 font-black text-lg">$${c.monto.toFixed(2)}</p></div>
+                <i class="fas fa-check-circle text-green-500"></i>
+            </div>`;
+        } else {
             pendiente += c.monto;
             contC.innerHTML += `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2 animate-nudge">
-                    <div>
-                        <p class="font-black text-gray-400 text-[9px] uppercase tracking-tighter">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p>
-                        <p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
-                    </div>
+                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
+                    <div><p class="font-black text-gray-400 text-[9px] uppercase">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p><p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p></div>
                     <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px] shadow-md">COBRAR</button>
                 </div>`;
         }
@@ -239,26 +289,69 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
     document.getElementById('c-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 };
 
-// --- FUNCIÓN DE COBRO ---
+// --- FUNCIÓN COBRO + WHATSAPP ---
 window.registrarCobro = async (id, cid, cnom, ctel, monto, n) => {
-    if (!confirm(`¿Cobrar Cuota #${n} de $${monto}?`)) return;
+    if (!confirm(`¿Registrar pago de $${monto}?`)) return;
     await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
-    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cnom}%0A💰 *Cuota Pagada:* $${monto}%0A🔢 *Cuota Nro:* ${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Gracias por su puntualidad.*`;
+    const msg = `🧾 *RECIBO DE PAGO - SISCOP*%0A👤 *Cliente:* ${cnom}%0A💰 *Monto Pagado:* $${monto}%0A🔢 *Cuota:* #${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Su pago ha sido procesado.*`;
     window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
     verDetalleCliente(cid, cnom, ctel);
 };
 
-// --- OTROS MÓDULOS ---
+// --- BOTÓN RECORDATORIO ---
+window.recordarWhatsApp = (cnom, ctel, monto) => {
+    const msg = `🔔 *RECORDATORIO DE PAGO - SISCOP*%0AHola *${cnom}*, te recordamos que hoy vence tu cuota de *$${monto}*. ¡Ten un feliz día!`;
+    window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
+};
+
+// --- MÓDULO COBROS Y MOROSOS (CON RECORDATORIO) ---
+async function renderCobros() {
+    pageTitle.innerText = "Cobros de Hoy";
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24"></div>`;
+    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
+    const cont = document.getElementById('lc');
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Nada que cobrar hoy🏖️</p>`; return; }
+    for (const d of snap.docs) {
+        const cuota = d.data(); const cliSnap = await getDoc(doc(db, "clientes", cuota.clienteId));
+        const cli = cliSnap.data();
+        cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center">
+            <div class="flex-1"><p class="font-black text-gray-400 uppercase text-[9px]">${cli.nombre}</p><p class="text-blue-600 font-black text-2xl">$${cuota.monto.toFixed(2)}</p></div>
+            <div class="flex gap-2">
+                <button onclick="recordarWhatsApp('${cli.nombre}', '${cli.telefono}', '${cuota.monto.toFixed(2)}')" class="bg-blue-100 text-blue-600 p-4 rounded-2xl"><i class="fab fa-whatsapp"></i></button>
+                <button onclick="registrarCobro('${d.id}', '${cuota.clienteId}', '${cli.nombre}', '${cli.telefono}', '${cuota.monto.toFixed(2)}', '${cuota.n}')" class="bg-green-600 text-white px-5 py-3 rounded-2xl font-black shadow-lg">COBRAR</button>
+            </div>
+        </div>`;
+    }
+}
+
+async function renderMorosos() {
+    pageTitle.innerText = "Atrasados";
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    mainContent.innerHTML = `<div id="lm" class="space-y-3 pb-24"></div>`;
+    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "<", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
+    const cont = document.getElementById('lm');
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Todo al día👏</p>`; return; }
+    for (const d of snap.docs) {
+        const c = d.data(); const cliSnap = await getDoc(doc(db, "clientes", c.clienteId));
+        const cli = cliSnap.data();
+        cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-red-600 flex justify-between items-center">
+            <div class="flex-1"><p class="font-black text-gray-400 uppercase text-[9px]">${cli.nombre}</p><p class="text-red-600 font-black text-2xl">$${c.monto.toFixed(2)}</p></div>
+            <button onclick="registrarCobro('${d.id}', '${c.clienteId}', '${cli.nombre}', '${cli.telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg">COBRAR</button>
+        </div>`;
+    }
+}
+
+// --- CRUD Y PRÉSTAMOS ---
 async function renderPrestamos() {
-    pageTitle.innerText = "Historial General";
+    pageTitle.innerText = "Historial";
     mainContent.innerHTML = `<div id="lista-p" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lista-p');
-    if (snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black text-xs uppercase italic">Sin registros</p>`; return; }
     snap.forEach(async d => {
         const p = d.data(); const cliSnap = await getDoc(doc(db, "clientes", p.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border mb-3 flex justify-between items-center">
-            <div><p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">${cliSnap.data() ? cliSnap.data().nombre : 'Borrado'}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p><p class="text-[8px] font-bold text-gray-400 uppercase">${p.modalidad || 'Diario'}</p></div>
+            <div><p class="text-[9px] font-black text-gray-400 uppercase">${cliSnap.data() ? cliSnap.data().nombre : 'Borrado'}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p><p class="text-[8px] font-bold text-gray-400 uppercase">${p.modalidad || 'Diario'}</p></div>
             <button onclick="eliminarPrestamo('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
         </div>`;
     });
@@ -271,38 +364,6 @@ window.eliminarPrestamo = async (id) => {
     s.forEach(async (c) => await deleteDoc(doc(db, "cuotas", c.id)));
     renderPrestamos();
 };
-
-async function renderCobros() {
-    pageTitle.innerText = "Agenda de Hoy";
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24"></div>`;
-    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
-    const cont = document.getElementById('lc');
-    if(snap.empty) { cont.innerHTML = `<div class="text-center py-20 opacity-30"><i class="fas fa-check-circle text-6xl mb-4"></i><p class="font-black uppercase text-xs">Día completo</p></div>`; return; }
-    for (const d of snap.docs) {
-        const cuota = d.data(); const cliSnap = await getDoc(doc(db, "clientes", cuota.clienteId));
-        cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center">
-            <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-blue-600 font-black text-2xl">$${cuota.monto.toFixed(2)}</p></div>
-            <button onclick="registrarCobro('${d.id}', '${cuota.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${cuota.monto.toFixed(2)}', '${cuota.n}')" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black shadow-lg">COBRAR</button>
-        </div>`;
-    }
-}
-
-async function renderMorosos() {
-    pageTitle.innerText = "Atrasados";
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    mainContent.innerHTML = `<div id="lm" class="space-y-3 pb-24"></div>`;
-    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "<", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
-    const cont = document.getElementById('lm');
-    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs italic">Nadie debe nada</p>`; return; }
-    for (const d of snap.docs) {
-        const c = d.data(); const cliSnap = await getDoc(doc(db, "clientes", c.clienteId));
-        cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-red-600 flex justify-between items-center">
-            <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-red-600 font-black text-2xl">$${c.monto.toFixed(2)}</p></div>
-            <button onclick="registrarCobro('${d.id}', '${c.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white h-12 px-6 rounded-2xl font-black shadow-lg">COBRAR</button>
-        </div>`;
-    }
-}
 
 async function guardarPrestamo(e) {
     e.preventDefault();
