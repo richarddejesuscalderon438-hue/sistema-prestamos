@@ -1,8 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, getDoc, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, getDoc, deleteDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { firebaseConfig } from './firebase-config.js';
 
+// --- INICIALIZACIÓN ---
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
@@ -12,278 +13,133 @@ const pageTitle = document.getElementById('page-title');
 const bottomNav = document.getElementById('bottom-nav');
 const btnLogout = document.getElementById('btn-logout');
 
-// --- NAVEGACIÓN ---
+// --- SISTEMA DE RUTA (SPA) ---
 window.router = (route) => {
-    mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>`;
-    if (route === 'dashboard') uiDashboard();
-    if (route === 'clientes') uiClientes();
-    if (route === 'prestamos') uiPrestamos();
-    if (route === 'cobros') uiCobros();
-    if (route === 'morosos') uiMorosos();
+    // Marcar botón activo en el menú
+    const buttons = document.querySelectorAll('#bottom-nav button');
+    buttons.forEach(btn => btn.classList.remove('nav-active'));
+    
+    mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-10 w-10 border-b-4 border-blue-600"></div></div>`;
+    
+    if (route === 'dashboard') renderDashboard();
+    if (route === 'clientes') renderClientes();
+    if (route === 'prestamos') renderPrestamos();
+    if (route === 'cobros') renderCobros();
 };
 
+// --- CONTROL DE SESIÓN ---
 onAuthStateChanged(auth, (user) => {
-    if (user) { 
-        bottomNav.classList.remove('hidden'); 
-        btnLogout.classList.remove('hidden'); 
-        router('dashboard'); 
-    } else { 
-        bottomNav.classList.add('hidden'); 
-        btnLogout.classList.add('hidden'); 
-        uiLogin(); 
+    if (user) {
+        bottomNav.classList.remove('hidden');
+        btnLogout.classList.remove('hidden');
+        router('dashboard');
+    } else {
+        bottomNav.classList.add('hidden');
+        btnLogout.classList.add('hidden');
+        renderLogin();
     }
 });
 
-function uiLogin() {
-    pageTitle.innerText = "Siscop - Entrar";
+// --- PANTALLA: LOGIN ---
+function renderLogin() {
+    pageTitle.innerText = "ACCESO";
     mainContent.innerHTML = `
-        <div class="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl mt-6 text-center border-b-4 border-blue-600">
-            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
-            <form id="f-login" class="space-y-4">
-                <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
-                <input type="password" id="log-pass" placeholder="Clave" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase shadow-lg">Entrar</button>
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl mt-4 border-b-8 border-blue-600">
+            <h2 class="text-3xl font-black text-slate-800 mb-2 italic">HOLA 👋</h2>
+            <p class="text-slate-400 text-xs font-bold uppercase mb-8">Ingresa para administrar tus cobros</p>
+            <form id="login-form" class="space-y-4 text-left">
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Email</label>
+                    <input type="email" id="l-email" placeholder="tu@correo.com" class="w-full p-4 border-2 border-slate-50 rounded-2xl bg-slate-50 font-bold focus:border-blue-600 outline-none" required>
+                </div>
+                <div>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2">Contraseña</label>
+                    <input type="password" id="l-pass" placeholder="••••••" class="w-full p-4 border-2 border-slate-50 rounded-2xl bg-slate-50 font-bold focus:border-blue-600 outline-none" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-xl active:scale-95 transition-all">Entrar al Sistema</button>
             </form>
         </div>`;
-    document.getElementById('f-login').onsubmit = async (e) => {
-        e.preventDefault();
-        try { await signInWithEmailAndPassword(auth, document.getElementById('log-email').value, document.getElementById('log-pass').value); } 
-        catch (error) { alert("Usuario o clave incorrectos"); }
-    };
-}
-
-// --- DASHBOARD ---
-async function uiDashboard() {
-    pageTitle.innerText = "Dashboard";
-    mainContent.innerHTML = `
-        <div class="grid grid-cols-2 gap-3 mb-6 px-2">
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-green-500 text-center">
-                <p class="text-gray-400 text-[9px] font-black uppercase">Cobrado Hoy</p>
-                <p id="d-cobrado" class="text-xl font-black text-green-600">$0.00</p>
-            </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-red-500 text-center">
-                <p class="text-gray-400 text-[9px] font-black uppercase">En la Calle</p>
-                <p id="d-total" class="text-xl font-black text-red-600">$0.00</p>
-            </div>
-        </div>
-        <div class="px-2 space-y-3">
-            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-5 rounded-3xl font-black shadow-lg uppercase active:scale-95 transition-all">RUTA DE COBRO</button>
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="router('clientes')" class="bg-gray-100 p-4 rounded-2xl font-bold text-gray-700 text-[10px] uppercase shadow-sm">Clientes</button>
-                <button onclick="router('prestamos')" class="bg-gray-100 p-4 rounded-2xl font-bold text-gray-700 text-[10px] uppercase shadow-sm">Historial</button>
-            </div>
-        </div>`;
-
-    const snap = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid)));
-    let cob = 0, tot = 0;
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    snap.forEach(d => {
-        const c = d.data();
-        if(c.estado === "pendiente") tot += c.monto;
-        if(c.estado === "pagado" && c.fecha.toDate().toDateString() === hoy.toDateString()) cob += c.monto;
-    });
-    document.getElementById('d-cobrado').innerText = `$${cob.toFixed(2)}`;
-    document.getElementById('d-total').innerText = `$${tot.toFixed(2)}`;
-}
-
-// --- CLIENTES ---
-function uiClientes() {
-    pageTitle.innerText = "Mis Clientes";
-    mainContent.innerHTML = `
-        <div class="flex gap-2 mb-4 px-2">
-            <input type="text" id="b-cli" placeholder="Buscar..." class="w-full p-4 border rounded-2xl font-bold outline-none">
-            <button onclick="document.getElementById('m-c').classList.remove('hidden')" class="bg-blue-600 text-white p-4 rounded-2xl shadow-lg"><i class="fas fa-plus"></i></button>
-        </div>
-        <div id="l-c" class="space-y-2 pb-24 px-2"></div>
-        <div id="m-c" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
-                <form id="f-c-nuevo">
-                    <h3 class="font-black text-center uppercase mb-4">Nuevo Cliente</h3>
-                    <input type="text" id="n-nom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-2" required>
-                    <input type="tel" id="n-tel" placeholder="WhatsApp" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-4" required>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Guardar</button>
-                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-[10px] mt-4">Cancelar</button>
-                </form>
-            </div>
-        </div>`;
     
-    const loadC = async () => {
-        const snap = await getDocs(query(collection(db, "clientes"), where("cobradorId", "==", auth.currentUser.uid), orderBy("nombre", "asc")));
-        const cont = document.getElementById('l-c');
-        cont.innerHTML = "";
-        snap.forEach(d => {
-            const c = d.data();
-            cont.innerHTML += `
-            <div class="bg-white p-4 rounded-2xl border flex justify-between items-center mb-2 shadow-sm animate-nudge">
-                <div onclick="verPerfil('${d.id}', '${c.nombre}', '${c.telefono}')" class="flex-1 cursor-pointer">
-                    <p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p>
-                    <p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p>
-                </div>
-                <button onclick="deleteC('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
-            </div>`;
-        });
-    };
-    loadC();
-
-    document.getElementById('f-c-nuevo').onsubmit = async (e) => {
+    document.getElementById('login-form').onsubmit = async (e) => {
         e.preventDefault();
         try {
-            await addDoc(collection(db, "clientes"), {
-                nombre: document.getElementById('n-nom').value,
-                telefono: document.getElementById('n-tel').value,
-                cobradorId: auth.currentUser.uid,
-                fecha: new Date()
-            });
-            document.getElementById('m-c').classList.add('hidden');
-            uiClientes();
-        } catch (err) { alert("Error"); }
+            await signInWithEmailAndPassword(auth, document.getElementById('l-email').value, document.getElementById('l-pass').value);
+        } catch (error) {
+            alert("Acceso denegado: Verifica tus datos");
+        }
     };
 }
 
-// --- PERFIL Y CREACIÓN DE PRÉSTAMO ---
-window.verPerfil = async (id, nombre, telefono) => {
-    pageTitle.innerText = "Perfil";
+// --- PANTALLA: DASHBOARD (NUEVA LÓGICA DE SALDOS) ---
+async function renderDashboard() {
+    pageTitle.innerText = "INICIO";
     mainContent.innerHTML = `
-        <div class="space-y-4 pb-24 px-2">
-            <div class="bg-white p-8 rounded-[2.5rem] shadow-xl text-center border-b-4 border-blue-600">
-                <h3 class="font-black text-xl text-gray-800 uppercase mb-4">${nombre}</h3>
-                <div class="flex gap-2">
-                    <button onclick="document.getElementById('m-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs shadow-lg">+ PRÉSTAMO</button>
-                    <a href="https://wa.me/${telefono}" class="bg-green-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg"><i class="fab fa-whatsapp"></i></a>
-                </div>
+        <div class="grid grid-cols-2 gap-3 mb-6">
+            <div class="bg-white p-5 rounded-3xl shadow-sm border-l-4 border-green-500">
+                <p class="text-slate-400 text-[10px] font-black uppercase mb-1">Cobrado Hoy</p>
+                <p id="dash-cobrado" class="text-2xl font-black text-green-600">$0.00</p>
             </div>
-            <div id="l-cuotas" class="space-y-2"></div>
+            <div class="bg-white p-5 rounded-3xl shadow-sm border-l-4 border-blue-500">
+                <p class="text-slate-400 text-[10px] font-black uppercase mb-1">Por Cobrar</p>
+                <p id="dash-acobrar" class="text-2xl font-black text-blue-500">$0.00</p>
+            </div>
         </div>
-        <div id="m-p" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
-                <form id="f-p-final">
-                    <h3 class="font-black text-center uppercase mb-4">Nuevo Préstamo</h3>
-                    <input type="number" id="p-monto" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-2" required>
-                    <input type="number" id="p-interes" value="20" placeholder="Interés %" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-2" required>
-                    <input type="number" id="p-cuotas" value="20" placeholder="Cant. Cuotas" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-2" required>
-                    <select id="p-modalidad" class="w-full p-4 border rounded-xl font-bold bg-gray-50 mb-4">
-                        <option value="Diario">Diario</option><option value="Semanal">Semanal</option><option value="Quincenal">Quincenal</option><option value="Mensual">Mensual</option>
-                    </select>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Crear Préstamo</button>
-                    <button type="button" onclick="document.getElementById('m-p').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-[10px] mt-4">Cerrar</button>
-                </form>
-            </div>
-        </div>`;
 
-    const snapC = await getDocs(query(collection(db, "cuotas"), where("clienteId", "==", id), orderBy("n", "asc")));
-    const cont = document.getElementById('l-cuotas');
-    snapC.forEach(d => {
-        const c = d.data();
-        if (c.estado === "pendiente") {
-            cont.innerHTML += `<div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2 animate-nudge">
-                <p class="font-black text-gray-800 text-sm">$${c.monto.toFixed(2)} <span class="text-[9px] text-gray-400 ml-2">#${c.n}</span></p>
-                <button onclick="pay('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px]">COBRAR</button>
-            </div>`;
+        <div class="bg-slate-900 p-6 rounded-[2rem] shadow-xl mb-6 text-white relative overflow-hidden">
+            <p class="text-slate-400 text-[10px] font-black uppercase mb-1">Capital Total en la Calle</p>
+            <p id="dash-total" class="text-3xl font-black">$0.00</p>
+            <i class="fas fa-vault absolute -right-4 -bottom-4 text-8xl opacity-10"></i>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black shadow-lg flex items-center justify-between active:scale-95 transition-all">
+                <div class="flex items-center gap-4"><i class="fas fa-route text-xl"></i><span>RUTA DE COBRO</span></div>
+                <i class="fas fa-chevron-right"></i>
+            </button>
+            <button onclick="router('clientes')" class="w-full bg-white border-2 p-5 rounded-2xl font-black text-slate-700 flex items-center justify-between active:scale-95 transition-all">
+                <div class="flex items-center gap-4"><i class="fas fa-user-plus text-xl text-blue-600"></i><span>NUEVO CLIENTE</span></div>
+                <i class="fas fa-chevron-right text-slate-300"></i>
+            </button>
+        </div>
+    `;
+
+    // Lógica de cálculo (Optimizada)
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
+    
+    let cobradoHoy = 0, porCobrarHoy = 0, deudaTotal = 0;
+
+    snapP.forEach(d => {
+        const p = d.data();
+        if (p.estado === "activo") {
+            deudaTotal += p.saldoActual;
+            
+            // Verificar si el próximo pago es hoy
+            const proxPago = p.proximoPago.toDate(); proxPago.setHours(0,0,0,0);
+            if (proxPago.getTime() <= hoy.getTime()) {
+                porCobrarHoy += p.cuotaMonto;
+            }
         }
     });
 
-    document.getElementById('f-p-final').onsubmit = async (e) => {
-        e.preventDefault();
-        const m = parseFloat(document.getElementById('p-monto').value);
-        const i = parseFloat(document.getElementById('p-interes').value);
-        const c = parseInt(document.getElementById('p-cuotas').value);
-        const mod = document.getElementById('p-modalidad').value;
-        const total = m * (1 + i / 100);
-        const vc = total / c;
+    // Buscar abonos hechos hoy
+    const snapA = await getDocs(query(collection(db, "abonos"), where("cobradorId", "==", auth.currentUser.uid)));
+    snapA.forEach(d => {
+        const a = d.data();
+        if (a.fecha.toDate().toDateString() === hoy.toDateString()) {
+            cobradoHoy += a.monto;
+        }
+    });
 
-        try {
-            const pref = await addDoc(collection(db, "prestamos"), {
-                clienteId: id, total, vCuota: vc, modalidad: mod, estado: "activo", cobradorId: auth.currentUser.uid, fecha: new Date()
-            });
-
-            for (let j = 1; j <= c; j++) {
-                let f = new Date(); f.setHours(0,0,0,0);
-                if (mod === "Diario") f.setDate(f.getDate() + j);
-                else if (mod === "Semanal") f.setDate(f.getDate() + (j * 7));
-                else if (mod === "Quincenal") f.setDate(f.getDate() + (j * 15));
-                else if (mod === "Mensual") f.setMonth(f.getMonth() + j);
-                await addDoc(collection(db, "cuotas"), { prestamoId: pref.id, clienteId: id, n: j, monto: vc, fecha: Timestamp.fromDate(f), estado: "pendiente", cobradorId: auth.currentUser.uid });
-            }
-            alert("¡PRÉSTAMO CREADO CON ÉXITO!");
-            router('prestamos');
-        } catch (err) { alert("Error al crear préstamo"); }
-    };
-};
-
-// --- MODULO PRÉSTAMOS (HISTORIAL INFORMATIVO) ---
-async function uiPrestamos() {
-    pageTitle.innerText = "Historial";
-    mainContent.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
-    const cont = document.getElementById('l-his');
-    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), orderBy("fecha", "desc")));
-    
-    if (snapP.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black text-xs uppercase italic">No hay préstamos registrados</p>`; return; }
-
-    for (const d of snapP.docs) {
-        const p = d.data();
-        const cliS = await getDoc(doc(db, "clientes", p.clienteId));
-        const qCuo = query(collection(db, "cuotas"), where("prestamoId", "==", d.id));
-        const snapCuo = await getDocs(qCuo);
-        let pagadas = 0, saldo = 0;
-        snapCuo.forEach(cd => { if(cd.data().estado === "pagado") pagadas++; else saldo += cd.data().monto; });
-
-        cont.innerHTML += `
-            <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 mb-3 animate-nudge">
-                <div class="flex justify-between items-start mb-2">
-                    <div><p class="text-blue-600 font-black uppercase text-xs">${cliS.exists() ? cliS.data().nombre : '---'}</p><p class="text-[9px] font-bold text-gray-400 uppercase tracking-widest">${p.modalidad}</p></div>
-                    <button onclick="deleteP('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash-alt"></i></button>
-                </div>
-                <div class="flex justify-between items-end border-t pt-2">
-                    <div><p class="text-[9px] font-black text-gray-400 uppercase">Saldo actual</p><p class="text-xl font-black text-gray-800">$${saldo.toFixed(2)}</p></div>
-                    <p class="text-xs font-black text-green-600">${pagadas} / ${snapCuo.size} <span class="text-[9px] text-gray-400">Cuotas</span></p>
-                </div>
-            </div>`;
-    }
+    document.getElementById('dash-cobrado').innerText = `$${cobradoHoy.toFixed(2)}`;
+    document.getElementById('dash-acobrar').innerText = `$${porCobrarHoy.toFixed(2)}`;
+    document.getElementById('dash-total').innerText = `$${deudaTotal.toFixed(2)}`;
 }
 
-// --- COBROS Y MOROSOS ---
-window.pay = async (id, cid, cnom, ctel, monto, n) => {
-    if (!confirm(`Cobrar $${monto}?`)) return;
-    await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
-    window.open(`https://wa.me/${ctel}?text=🧾 *SISCOP* Recibo de Pago%0A👤 ${cnom}%0A💰 $${monto}%0A🔢 Cuota #${n}`, '_blank');
-    verPerfil(cid, cnom, ctel);
-};
+// --- LOGOUT ---
+btnLogout.onclick = () => { if(confirm("¿Cerrar sesión?")) signOut(auth); };
 
-async function uiCobros() {
-    pageTitle.innerText = "Hoy";
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
-    const cont = document.getElementById('main-content');
-    cont.innerHTML = `<div id="lc" class="space-y-3 pb-24 px-2"></div>`;
-    if(snap.empty) { document.getElementById('lc').innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">🏝️ Libre hoy</p>`; return; }
-    for (const d of snap.docs) {
-        const c = d.data(); const cliS = await getDoc(doc(db, "clientes", c.clienteId));
-        document.getElementById('lc').innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2">
-            <p class="font-black text-gray-800 uppercase text-xs">${cliS.data() ? cliS.data().nombre : '---'}</p>
-            <p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
-            <button onclick="pay('${d.id}', '${c.clienteId}', '${cliS.data().nombre}', '${cliS.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-xs">OK</button>
-        </div>`;
-    }
-}
-
-async function uiMorosos() {
-    pageTitle.innerText = "Atrasados";
-    const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "<", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
-    const cont = document.getElementById('main-content');
-    cont.innerHTML = `<div id="lm" class="space-y-3 pb-24 px-2"></div>`;
-    if(snap.empty) { document.getElementById('lm').innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Todo al día👏</p>`; return; }
-    for (const d of snap.docs) {
-        const c = d.data(); const cliS = await getDoc(doc(db, "clientes", c.clienteId));
-        document.getElementById('lm').innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-red-600 flex justify-between items-center mb-2">
-            <p class="font-black text-gray-800 uppercase text-xs">${cliS.data() ? cliS.data().nombre : '---'}</p>
-            <p class="text-red-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
-            <button onclick="pay('${d.id}', '${c.clienteId}', '${cliS.data().nombre}', '${cliS.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg">OK</button>
-        </div>`;
-    }
-}
-
-window.deleteC = async (id) => { if(confirm("¿Borrar cliente?")) { await deleteDoc(doc(db, "clientes", id)); uiClientes(); } };
-window.deleteP = async (id) => { if(confirm("¿Borrar préstamo?")) { await deleteDoc(doc(db, "prestamos", id)); const s = await getDocs(query(collection(db, "cuotas"), where("prestamoId", "==", id))); s.forEach(async (c) => await deleteDoc(doc(db, "cuotas", c.id))); uiPrestamos(); } };
-function uiReportes() { router('dashboard'); }
-btnLogout.onclick = () => signOut(auth);
+// FUNCIONES TEMPORALES PARA EVITAR ERRORES
+function renderClientes() { mainContent.innerHTML = `<p class="p-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">Próximo paso: Gestión de Clientes</p>`; }
+function renderPrestamos() { mainContent.innerHTML = `<p class="p-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">Próximo paso: Gestión de Préstamos</p>`; }
+function renderCobros() { mainContent.innerHTML = `<p class="p-10 text-center text-slate-400 font-bold uppercase text-xs tracking-widest">Próximo paso: Ruta de Cobro</p>`; }
