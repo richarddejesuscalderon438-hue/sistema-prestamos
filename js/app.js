@@ -12,6 +12,7 @@ const pageTitle = document.getElementById('page-title');
 const bottomNav = document.getElementById('bottom-nav');
 const btnLogout = document.getElementById('btn-logout');
 
+// --- SISTEMA DE NAVEGACIÓN ---
 window.router = (route) => {
     const currentRoute = route || window.location.hash.replace('#', '') || 'dashboard';
     if (route) window.location.hash = route;
@@ -31,23 +32,24 @@ onAuthStateChanged(auth, (user) => {
 });
 
 function uiLogin() {
-    pageTitle.innerText = "Siscop - Entrar";
-    mainContent.innerHTML = `<div class="max-w-md mx-auto bg-white p-8 rounded-[2rem] shadow-xl mt-6 text-center border-b-4 border-blue-600">
-        <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic tracking-tighter">Siscop</h2>
-        <form id="f-login" class="space-y-4">
-            <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none focus:border-blue-600" required>
-            <input type="password" id="log-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
-            <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Entrar</button>
-        </form>
-    </div>`;
+    pageTitle.innerText = "Entrar";
+    mainContent.innerHTML = `
+        <div class="max-w-md mx-auto bg-white p-8 rounded-[2rem] shadow-xl mt-6 text-center border-b-4 border-blue-600">
+            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
+            <form id="f-login" class="space-y-4">
+                <input type="email" id="log-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
+                <input type="password" id="log-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50" required>
+                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black uppercase shadow-lg">Ingresar</button>
+            </form>
+        </div>`;
     document.getElementById('f-login').onsubmit = async (e) => {
         e.preventDefault();
         try { await signInWithEmailAndPassword(auth, document.getElementById('log-email').value, document.getElementById('log-pass').value); } 
-        catch (error) { alert("Usuario o clave incorrectos"); }
+        catch (error) { alert("Acceso denegado"); }
     };
 }
 
-// --- DASHBOARD ---
+// --- DASHBOARD (MATEMÁTICA CORREGIDA) ---
 async function uiDashboard() {
     pageTitle.innerText = "Inicio";
     mainContent.innerHTML = `
@@ -66,35 +68,44 @@ async function uiDashboard() {
                 <span>RUTA DE COBRO</span>
                 <i class="fas fa-calendar-check text-xl"></i>
             </button>
+            <button onclick="router('clientes')" class="w-full bg-white border-2 p-6 rounded-[2rem] font-black text-gray-700 flex items-center justify-between active:scale-95 transition-all uppercase text-xs">
+                <span>Gestionar Clientes</span>
+                <i class="fas fa-users text-xl text-blue-600"></i>
+            </button>
         </div>
-        <h4 class="text-[10px] font-black text-gray-400 uppercase mt-8 mb-4 ml-2 tracking-widest italic text-center">Cobros Recientes</h4>
+        <h4 class="text-[10px] font-black text-gray-400 uppercase mt-8 mb-4 ml-2 tracking-widest text-center">Actividad de Hoy</h4>
         <div id="historial-abonos" class="space-y-2 pb-24 px-2"></div>`;
 
-    const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "activo")));
-    let tot = 0; snap.forEach(d => tot += d.data().saldoActual || 0);
-    document.getElementById('d-total').innerText = `$${tot.toFixed(2)}`;
+    // 1. Calcular "En la Calle"
+    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "activo")));
+    let totCalle = 0; snapP.forEach(d => totCalle += d.data().saldoActual || 0);
+    document.getElementById('d-total').innerText = `$${totCalle.toFixed(2)}`;
 
-    const snapA = await getDocs(query(collection(db, "abonos"), where("cobradorId", "==", auth.currentUser.uid), orderBy("fecha", "desc"), limit(10)));
-    let cob = 0; const hoy = new Date().toDateString();
+    // 2. Calcular "Cobrado Hoy" (Busqueda de Abonos)
+    const snapA = await getDocs(query(collection(db, "abonos"), where("cobradorId", "==", auth.currentUser.uid)));
+    let cobHoy = 0; 
+    const hoyStr = new Date().toDateString();
     const contH = document.getElementById('historial-abonos');
-    contH.innerHTML = snapA.empty ? `<p class="text-center text-gray-300 text-xs uppercase py-4">No hay pagos registrados</p>` : "";
-    
+    contH.innerHTML = "";
+
     snapA.forEach(async d => {
         const a = d.data();
-        if(a.fecha.toDate().toDateString() === hoy) cob += a.monto;
-        
-        const pS = await getDoc(doc(db, "prestamos", a.prestamoId));
-        const cS = await getDoc(doc(db, "clientes", pS.data().clienteId));
-        contH.innerHTML += `
-            <div class="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
-                <div class="flex items-center gap-3">
-                    <div class="w-8 h-8 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-black"><i class="fas fa-check"></i></div>
+        if(a.fecha.toDate().toDateString() === hoyStr) {
+            cobHoy += a.monto;
+            // Actualizar el número en pantalla inmediatamente
+            document.getElementById('d-cobrado').innerText = `$${cobHoy.toFixed(2)}`;
+            
+            // Cargar nombre para la lista
+            const pS = await getDoc(doc(db, "prestamos", a.prestamoId));
+            const cS = await getDoc(doc(db, "clientes", pS.data().clienteId));
+            contH.innerHTML += `
+                <div class="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-gray-50">
                     <p class="font-bold text-gray-700 text-xs uppercase">${cS.data().nombre}</p>
-                </div>
-                <p class="font-black text-green-600">$${a.monto.toFixed(2)}</p>
-            </div>`;
+                    <p class="font-black text-green-600">$${a.monto.toFixed(2)}</p>
+                </div>`;
+        }
     });
-    setTimeout(() => document.getElementById('d-cobrado').innerText = `$${cob.toFixed(2)}`, 500);
+    if(cobHoy === 0) contH.innerHTML = `<p class="text-center text-gray-300 text-[10px] uppercase py-4">No hay cobros hoy</p>`;
 }
 
 // --- CLIENTES ---
@@ -109,11 +120,11 @@ function uiClientes() {
         <div id="m-c" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl">
                 <form id="f-c-nuevo" class="space-y-4">
-                    <h3 class="font-black text-center uppercase">Nuevo Cliente</h3>
-                    <input type="text" id="n-nom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <input type="tel" id="n-tel" placeholder="WhatsApp" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
+                    <h3 class="font-black text-center uppercase text-gray-700">Nuevo Cliente</h3>
+                    <input type="text" id="n-nom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                    <input type="tel" id="n-tel" placeholder="WhatsApp" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
                     <button type="submit" id="b-save-c" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Guardar</button>
-                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-xs mt-2">Cerrar</button>
+                    <button type="button" onclick="document.getElementById('m-c').classList.add('hidden')" class="w-full text-gray-400 font-bold text-xs mt-2 uppercase">Cerrar</button>
                 </form>
             </div>
         </div>`;
@@ -122,7 +133,7 @@ function uiClientes() {
         const cont = document.getElementById('l-c'); cont.innerHTML = "";
         snap.forEach(d => {
             const c = d.data();
-            cont.innerHTML += `<div class="bg-white p-5 rounded-[2rem] border flex justify-between items-center mb-2 active:bg-gray-50" onclick="router('perfil-${d.id}')">
+            cont.innerHTML += `<div class="bg-white p-5 rounded-[2rem] border flex justify-between items-center mb-2 shadow-sm active:bg-gray-50" onclick="router('perfil-${d.id}')">
                 <div class="flex-1"><p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p><p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p></div>
                 <button onclick="event.stopPropagation(); deleteC('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash-alt"></i></button>
             </div>`;
@@ -136,7 +147,7 @@ function uiClientes() {
     };
 }
 
-// --- PERFIL Y ABONOS ---
+// --- PERFIL Y ABONOS (RECIBO ANTERIOR RECUPERADO) ---
 window.verPerfil = async (id, nombre, telefono) => {
     window.location.hash = `perfil-${id}`;
     pageTitle.innerText = "Perfil";
@@ -151,18 +162,17 @@ window.verPerfil = async (id, nombre, telefono) => {
             </div>
             <div id="l-p-c" class="space-y-3"></div>
         </div>
-
         <div id="mod-p" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
                 <form id="f-p-final" class="space-y-3">
-                    <h3 class="font-black text-center text-gray-800 uppercase mb-4 text-xl">Nuevo Préstamo</h3>
-                    <input type="number" id="p-m" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
+                    <h3 class="font-black text-center text-gray-700 uppercase mb-4 text-xl">Nuevo Préstamo</h3>
+                    <input type="number" id="p-m" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
                     <input type="number" id="p-i" value="20" placeholder="Interés %" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
                     <input type="number" id="p-c" value="20" placeholder="Cuotas" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
                     <select id="p-mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50">
                         <option value="Diario">Diario</option><option value="Semanal">Semanal</option><option value="Quincenal">Quincenal</option><option value="Mensual">Mensual</option>
                     </select>
-                    <button type="submit" id="btn-p-save" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Crear</button>
+                    <button type="submit" id="btn-p-save" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Crear</button>
                 </form>
             </div>
         </div>`;
@@ -176,8 +186,8 @@ window.verPerfil = async (id, nombre, telefono) => {
         alert("¡ÉXITO!"); router('prestamos');
     };
 
-    const contP = document.getElementById('l-p-c'); contP.innerHTML = "";
     const snapP = await getDocs(query(collection(db, "prestamos"), where("clienteId", "==", id), where("estado", "==", "activo")));
+    const contP = document.getElementById('l-p-c'); contP.innerHTML = "";
     snapP.forEach(d => {
         const p = d.data();
         contP.innerHTML += `<div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-50 text-left">
@@ -192,28 +202,31 @@ window.verPerfil = async (id, nombre, telefono) => {
 };
 
 window.regAbono = async (pId, cId, cNom, cTel) => {
-    const input = document.getElementById(`abono-${pId}`);
-    const monto = parseFloat(input.value);
-    if (!monto || monto <= 0) return alert("Escribe un monto");
-    const pDoc = doc(db, "prestamos", pId); const snap = await getDoc(pDoc);
-    const pData = snap.data();
-    const nuevoSaldo = (pData.saldoActual || 0) - monto;
-    let nProx = pData.proximoPago ? pData.proximoPago.toDate() : new Date();
-    const mod = pData.modalidad || "Diario";
-    if(mod === "Diario") nProx.setDate(nProx.getDate() + 1);
-    else if(mod === "Semanal") nProx.setDate(nProx.getDate() + 7);
-    else if(mod === "Quincenal") nProx.setDate(nProx.getDate() + 15);
-    else if(mod === "Mensual") nProx.setMonth(nProx.getMonth() + 1);
+    const val = document.getElementById(`abono-${pId}`).value;
+    if (!val || parseFloat(val) <= 0) return alert("Escribe un monto");
+    try {
+        const pDoc = doc(db, "prestamos", pId); const snap = await getDoc(pDoc);
+        const pData = snap.data();
+        const nuevoSaldo = (pData.saldoActual || 0) - parseFloat(val);
+        let nProx = pData.proximoPago ? pData.proximoPago.toDate() : new Date();
+        const mod = pData.modalidad || "Diario";
+        if(mod === "Diario") nProx.setDate(nProx.getDate() + 1);
+        else if(mod === "Semanal") nProx.setDate(nProx.getDate() + 7);
+        else if(mod === "Quincenal") nProx.setDate(nProx.getDate() + 15);
+        else if(mod === "Mensual") nProx.setMonth(nProx.getMonth() + 1);
 
-    await updateDoc(pDoc, { saldoActual: nuevoSaldo, estado: nuevoSaldo <= 0 ? "pagado" : "activo", proximoPago: Timestamp.fromDate(nProx) });
-    await addDoc(collection(db, "abonos"), { prestamoId: pId, monto, fecha: new Date(), cobradorId: auth.currentUser.uid });
-    
-    const msg = `🧾 *SISCOP - RECIBO*%0A👤 ${cNom}%0A💰 $${monto}%0A📅 ${new Date().toLocaleDateString()}%0A✅ Saldo: $${nuevoSaldo.toFixed(2)}`;
-    window.open(`https://wa.me/${cTel}?text=${msg}`, '_blank');
-    verPerfil(cId, cNom, cTel);
+        await updateDoc(pDoc, { saldoActual: nuevoSaldo, estado: nuevoSaldo <= 0 ? "pagado" : "activo", proximoPago: Timestamp.fromDate(nProx) });
+        await addDoc(collection(db, "abonos"), { prestamoId: pId, monto: parseFloat(val), fecha: new Date(), cobradorId: auth.currentUser.uid });
+        
+        // RECIBO DE WHATSAPP (ANTERIOR QUE TE GUSTABA)
+        const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cNom}%0A💰 *Monto:* $${val}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Saldo:* $${nuevoSaldo.toFixed(2)}`;
+        window.open(`https://wa.me/${cTel}?text=${msg}`, '_blank');
+        
+        verPerfil(cId, cNom, cTel);
+    } catch (e) { alert("Error"); }
 };
 
-// --- MÓDULO COBROS (CON RECORDATORIO) ---
+// --- COBROS ---
 async function uiCobros() {
     pageTitle.innerText = "Ruta de Hoy";
     const hoy = new Date(); hoy.setHours(0,0,0,0);
@@ -221,30 +234,25 @@ async function uiCobros() {
     const cont = document.getElementById('main-content');
     cont.innerHTML = `<div id="lc" class="space-y-3 pb-24 px-2"></div>`;
     let count = 0;
-    for (const d of snap.docs) {
+    snap.forEach(async d => {
         const p = d.data();
         if (p.proximoPago && p.proximoPago.toDate() <= hoy) {
             count++;
             const cliS = await getDoc(doc(db, "clientes", p.clienteId));
-            const c = cliS.data();
-            document.getElementById('lc').innerHTML += `<div class="bg-white p-5 rounded-[2rem] shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2 animate-nudge">
-                <div class="flex-1"><p class="font-black text-gray-800 uppercase text-xs">${c.nombre}</p><p class="text-blue-600 font-black text-xl">$${(p.cuotaMonto || 0).toFixed(2)}</p></div>
-                <div class="flex gap-2">
-                    <button onclick="window.open('https://wa.me/${c.telefono}?text=🔔 *RECORDATORIO SISCOP*%0AHola ${c.nombre}, hoy paso a cobrar tu cuota de $${(p.cuotaMonto || 0).toFixed(2)}.', '_blank')" class="bg-green-50 text-green-600 p-4 rounded-2xl"><i class="fab fa-whatsapp"></i></button>
-                    <button onclick="router('perfil-${p.clienteId}')" class="bg-blue-600 text-white h-14 px-6 rounded-2xl font-black text-xs shadow-lg uppercase">Cobrar</button>
-                </div>
+            document.getElementById('lc').innerHTML += `<div class="bg-white p-6 rounded-[2rem] shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2">
+                <div class="flex-1"><p class="font-black text-gray-800 uppercase text-xs">${cliS.data().nombre}</p><p class="text-blue-600 font-black text-xl">$${(p.cuotaMonto || 0).toFixed(2)}</p></div>
+                <button onclick="router('perfil-${p.clienteId}')" class="bg-green-600 text-white h-14 px-6 rounded-2xl font-black text-xs shadow-lg uppercase">Cobrar</button>
             </div>`;
         }
-    }
-    if(count === 0) document.getElementById('lc').innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">🏝️ Día libre por hoy</p>`;
+    });
 }
 
+// --- HISTORIAL ---
 async function uiPrestamos() {
     pageTitle.innerText = "Historial";
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('main-content');
     cont.innerHTML = `<div id="l-his" class="space-y-4 pb-24 px-2"></div>`;
-    if(snap.empty) { document.getElementById('l-his').innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-xs">Sin registros</p>`; return; }
     snap.forEach(async d => {
         const p = d.data(); const cliS = await getDoc(doc(db, "clientes", p.clienteId));
         document.getElementById('l-his').innerHTML += `<div class="bg-white p-6 rounded-[2rem] shadow-sm border flex justify-between items-center mb-3" onclick="router('perfil-${p.clienteId}')">
@@ -260,6 +268,6 @@ async function uiCargarPerfilDesdeURL(id) {
     else { router('clientes'); }
 }
 
-window.deleteC = async (id) => { if(confirm("¿Borrar cliente?")) { await deleteDoc(doc(db, "clientes", id)); uiClientes(); } };
-window.deleteP = async (id) => { if(confirm("¿Borrar préstamo?")) { await deleteDoc(doc(db, "prestamos", id)); uiPrestamos(); } };
+window.deleteC = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "clientes", id)); uiClientes(); } };
+window.deleteP = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "prestamos", id)); uiPrestamos(); } };
 btnLogout.onclick = () => signOut(auth);
