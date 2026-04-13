@@ -38,23 +38,22 @@ function renderLogin() {
     pageTitle.innerText = "Siscop - Entrar";
     mainContent.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-3xl shadow-xl mt-10 text-center">
-            <i class="fas fa-hand-holding-usd text-6xl text-blue-600 mb-4"></i>
-            <h2 class="text-2xl font-black text-blue-600 uppercase">Siscop</h2>
-            <form id="login-form" class="space-y-4 mt-6">
-                <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl bg-gray-50" required>
-                <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl bg-gray-50" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black">ENTRAR</button>
+            <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
+            <form id="login-form" class="space-y-4">
+                <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
+                <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl bg-gray-50 font-bold" required>
+                <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg uppercase tracking-widest">Entrar</button>
             </form>
         </div>
     `;
     document.getElementById('login-form').onsubmit = async (e) => {
         e.preventDefault();
         try { await signInWithEmailAndPassword(auth, document.getElementById('l-email').value, document.getElementById('l-pass').value); } 
-        catch (error) { alert("Acceso denegado"); }
+        catch (error) { alert("Usuario o clave incorrectos"); }
     };
 }
 
-// --- DASHBOARD (MEJORADO) ---
+// --- DASHBOARD: LÓGICA DE SALDOS REALES ---
 async function renderDashboard() {
     pageTitle.innerText = "Resumen de Negocio";
     mainContent.innerHTML = `
@@ -64,81 +63,79 @@ async function renderDashboard() {
                 <p id="s-cobrado" class="text-xl font-black text-green-600">$0.00</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-500 text-center">
-                <p class="text-gray-400 text-[10px] font-black uppercase">A Cobrar Hoy</p>
+                <p class="text-gray-400 text-[10px] font-black uppercase">Por Cobrar Hoy</p>
                 <p id="s-acobrar" class="text-xl font-black text-blue-500">$0.00</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-orange-500 text-center">
-                <p class="text-gray-400 text-[10px] font-black uppercase">Ganancia Estimada</p>
+                <p class="text-gray-400 text-[10px] font-black uppercase">Ganancia Neta</p>
                 <p id="s-ganancia" class="text-xl font-black text-orange-500">$0.00</p>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-gray-800 text-center">
-                <p class="text-gray-400 text-[10px] font-black uppercase">Total en Calle</p>
-                <p id="s-total" class="text-xl font-black text-gray-800">$0.00</p>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-red-600 text-center">
+                <p class="text-gray-400 text-[10px] font-black uppercase">Deuda en Calle</p>
+                <p id="s-total" class="text-xl font-black text-red-600">$0.00</p>
             </div>
         </div>
-        <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-3xl font-black shadow-xl flex items-center justify-center gap-3">
+        <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-6 rounded-3xl font-black shadow-xl mb-4 flex items-center justify-center gap-3">
              <i class="fas fa-calendar-check text-2xl"></i> VER COBROS DEL DÍA
         </button>
     `;
 
     const hoy = new Date(); hoy.setHours(0,0,0,0);
-    const qC = query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid));
-    const qP = query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "activo"));
-    const [snapC, snapP] = await Promise.all([getDocs(qC), getDocs(qP)]);
+    const snapC = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid)));
     
-    let cob = 0, acob = 0, atr = 0, tot = 0, gan = 0;
+    let cobHoy = 0, porCobHoy = 0, ganTotal = 0, deudaCalle = 0;
+
     snapC.forEach(d => {
-        const c = d.data(); const f = c.fecha.toDate(); f.setHours(0,0,0,0);
-        if (f.getTime() === hoy.getTime()) {
-            if (c.estado === "pagado") cob += c.monto; else acob += c.monto;
-        }
-        if (c.estado === "pagado") {
-            // Cálculo básico de ganancia: interés proporcional del monto
-            gan += c.monto * 0.166; // Aproximación (interés del 20%)
+        const c = d.data();
+        const f = c.fecha.toDate(); f.setHours(0,0,0,0);
+        
+        if (c.estado === "pendiente") {
+            deudaCalle += c.monto;
+            if (f.getTime() === hoy.getTime()) porCobHoy += c.monto;
+        } else if (c.estado === "pagado") {
+            if (f.getTime() === hoy.getTime()) cobHoy += c.monto;
+            // Cálculo ganancia (interés proporcional)
+            ganTotal += c.monto * 0.166; 
         }
     });
-    snapP.forEach(d => tot += d.data().total);
-    document.getElementById('s-cobrado').innerText = `$${cob.toFixed(2)}`;
-    document.getElementById('s-acobrar').innerText = `$${acob.toFixed(2)}`;
-    document.getElementById('s-ganancia').innerText = `$${gan.toFixed(2)}`;
-    document.getElementById('s-total').innerText = `$${tot.toFixed(2)}`;
+
+    document.getElementById('s-cobrado').innerText = `$${cobHoy.toFixed(2)}`;
+    document.getElementById('s-acobrar').innerText = `$${porCobHoy.toFixed(2)}`;
+    document.getElementById('s-ganancia').innerText = `$${ganTotal.toFixed(2)}`;
+    document.getElementById('s-total').innerText = `$${deudaCalle.toFixed(2)}`;
 }
 
-// --- CLIENTES ---
+// --- CLIENTES CON BUSCADOR ---
 function renderClientes() {
     pageTitle.innerText = "Mis Clientes";
     mainContent.innerHTML = `
         <div class="flex gap-2 mb-4">
-            <input type="text" id="busc-cli" placeholder="Buscar..." class="w-full p-4 border rounded-2xl shadow-sm outline-none">
-            <button onclick="document.getElementById('mod-c').classList.remove('hidden')" class="bg-blue-600 text-white p-4 rounded-2xl"><i class="fas fa-plus"></i></button>
+            <input type="text" id="busc-cli" placeholder="Buscar cliente..." class="w-full p-4 border rounded-2xl shadow-sm outline-none font-bold">
+            <button onclick="abrirModalCliente()" class="bg-blue-600 text-white p-4 rounded-2xl shadow-lg"><i class="fas fa-user-plus"></i></button>
         </div>
         <div id="lista-c" class="space-y-3 pb-24"></div>
+        
         <div id="mod-c" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
             <div class="bg-white rounded-3xl w-full max-w-md p-6">
                 <form id="f-c" class="space-y-4">
-                    <h3 class="font-bold text-center">Nuevo Cliente</h3>
-                    <input type="text" id="cnom" placeholder="Nombre" class="w-full p-4 border rounded-xl" required>
-                    <input type="tel" id="ctel" placeholder="Teléfono" class="w-full p-4 border rounded-xl" required>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold uppercase">Guardar</button>
-                    <button type="button" onclick="document.getElementById('mod-c').classList.add('hidden')" class="w-full text-gray-400">Cancelar</button>
+                    <h3 id="mod-c-title" class="font-black text-center uppercase text-gray-700">Cliente</h3>
+                    <input type="hidden" id="cid-edit">
+                    <input type="text" id="cnom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold" required>
+                    <input type="tel" id="ctel" placeholder="Teléfono" class="w-full p-4 border rounded-xl font-bold" required>
+                    <button type="submit" id="mod-c-btn" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Guardar</button>
+                    <button type="button" onclick="document.getElementById('mod-c').classList.add('hidden')" class="w-full text-gray-400 font-bold">Cerrar</button>
                 </form>
             </div>
         </div>
     `;
     cargarClientes();
-    
     document.getElementById('busc-cli').oninput = (e) => {
         const val = e.target.value.toLowerCase();
-        document.querySelectorAll('.item-cli').forEach(el => {
+        document.querySelectorAll('.tarjeta-cliente').forEach(el => {
             el.style.display = el.innerText.toLowerCase().includes(val) ? "flex" : "none";
         });
     };
-
-    document.getElementById('f-c').onsubmit = async (e) => {
-        e.preventDefault();
-        await addDoc(collection(db, "clientes"), { nombre: document.getElementById('cnom').value, telefono: document.getElementById('ctel').value, cobradorId: auth.currentUser.uid, fecha: new Date() });
-        renderClientes();
-    };
+    document.getElementById('f-c').onsubmit = guardarOActualizarCliente;
 }
 
 async function cargarClientes() {
@@ -148,50 +145,55 @@ async function cargarClientes() {
     snap.forEach(d => {
         const c = d.data();
         cont.innerHTML += `
-            <div class="item-cli bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2">
-                <div onclick="verDetalleCliente('${d.id}', '${c.nombre}', '${c.telefono}')" class="flex items-center gap-3 flex-1">
-                    <div class="bg-blue-100 text-blue-600 w-10 h-10 rounded-full flex items-center justify-center font-black">${c.nombre.charAt(0)}</div>
-                    <div><p class="font-bold">${c.nombre}</p><p class="text-[10px] text-gray-400 font-bold tracking-widest">${c.telefono}</p></div>
+            <div class="tarjeta-cliente bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2">
+                <div onclick="verDetalleCliente('${d.id}', '${c.nombre}', '${c.telefono}')" class="flex items-center gap-3 flex-1 cursor-pointer">
+                    <div class="bg-blue-100 text-blue-600 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl">${c.nombre.charAt(0)}</div>
+                    <div><p class="font-bold text-gray-800">${c.nombre}</p><p class="text-[10px] text-gray-400 font-bold uppercase">${c.telefono}</p></div>
                 </div>
-                <button onclick="eliminarCliente('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
+                <div class="flex gap-2">
+                    <button onclick="prepararEdicion('${d.id}', '${c.nombre}', '${c.telefono}')" class="text-blue-500 p-2"><i class="fas fa-edit"></i></button>
+                    <button onclick="eliminarCliente('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
+                </div>
             </div>`;
     });
 }
 
-window.eliminarCliente = async (id) => {
-    if (!confirm("¿Borrar cliente?")) return;
-    await deleteDoc(doc(db, "clientes", id));
-    renderClientes();
-};
-
-// --- PERFIL CLIENTE CON WHATSAPP ---
+// --- PERFIL CLIENTE: SALDOS Y CUOTAS ---
 window.verDetalleCliente = async (id, nombre, telefono) => {
     pageTitle.innerText = nombre;
     mainContent.innerHTML = `
         <div class="space-y-4 pb-24">
             <div class="bg-white p-6 rounded-3xl shadow-xl text-center">
                 <h3 class="font-black text-xl text-gray-700 uppercase mb-4">${nombre}</h3>
+                <div class="bg-gray-50 p-4 rounded-2xl mb-4 flex justify-around border">
+                    <div class="text-center">
+                        <p class="text-[9px] font-black text-gray-400 uppercase">Pagado</p>
+                        <p id="c-pagado" class="font-black text-green-600">$0.00</p>
+                    </div>
+                    <div class="text-center border-l pl-4">
+                        <p class="text-[9px] font-black text-gray-400 uppercase">Pendiente</p>
+                        <p id="c-pendiente" class="font-black text-red-600">$0.00</p>
+                    </div>
+                </div>
                 <div class="flex gap-2">
-                    <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-bold text-xs">+ NUEVO PRÉSTAMO</button>
-                    <a href="https://wa.me/${telefono}" class="flex-1 bg-green-500 text-white p-4 rounded-2xl font-bold text-xs flex items-center justify-center gap-2">
-                        <i class="fab fa-whatsapp text-lg"></i> WHATSAPP
-                    </a>
+                    <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs">+ NUEVO PRÉSTAMO</button>
+                    <a href="https://wa.me/${telefono}" class="flex-1 bg-green-500 text-white p-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2"><i class="fab fa-whatsapp text-lg"></i> WHATSAPP</a>
                 </div>
             </div>
-            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Plan de Pagos</h4>
+            <h4 class="text-[10px] font-black text-gray-400 uppercase ml-2 tracking-widest text-center">Plan de Pagos Activo</h4>
             <div id="lista-cuotas-cliente" class="space-y-2"></div>
         </div>
 
         <div id="mod-p" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-3xl w-full max-w-md p-6">
+            <div class="bg-white rounded-3xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
                 <form id="f-p" class="space-y-3">
-                    <h3 class="font-black text-center text-gray-700 uppercase">Nuevo Préstamo</h3>
+                    <h3 class="font-black text-center text-gray-700 uppercase">Crear Préstamo</h3>
                     <input type="hidden" id="pid" value="${id}">
                     <label class="text-[10px] font-black text-gray-400 uppercase">Monto ($)</label>
                     <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
                     <label class="text-[10px] font-black text-gray-400 uppercase">Interés (%)</label>
                     <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase">Pagos (Cantidad)</label>
+                    <label class="text-[10px] font-black text-gray-400 uppercase">Cuotas</label>
                     <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
                     <label class="text-[10px] font-black text-gray-400 uppercase">Frecuencia</label>
                     <select id="p_mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50">
@@ -199,60 +201,78 @@ window.verDetalleCliente = async (id, nombre, telefono) => {
                         <option value="semanal">Semanal</option>
                         <option value="mensual">Mensual</option>
                     </select>
-                    <button type="submit" id="btn-p" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold uppercase">Crear</button>
+                    <div id="p_r" class="bg-blue-600 text-white p-4 rounded-xl text-center font-black text-lg">Total: $0.00</div>
+                    <button type="submit" id="btn-p" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Crear</button>
                     <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold">Cerrar</button>
                 </form>
             </div>
         </div>
     `;
 
+    const im = document.getElementById('p_m'), ii = document.getElementById('p_i'), res = document.getElementById('p_r');
+    im.oninput = () => { res.innerText = `Total: $${((parseFloat(im.value)||0)*(1+(parseFloat(ii.value)||0)/100)).toFixed(2)}`; };
+    ii.oninput = im.oninput;
     document.getElementById('f-p').onsubmit = guardarPrestamo;
-    const snapC = await getDocs(query(collection(db, "cuotas"), where("clienteId", "==", id), where("estado", "==", "pendiente"), orderBy("n", "asc")));
+    
+    // Calcular Saldos del Cliente Específico
+    const snapC = await getDocs(query(collection(db, "cuotas"), where("clienteId", "==", id), orderBy("n", "asc")));
     const contC = document.getElementById('lista-cuotas-cliente');
-    contC.innerHTML = snapC.empty ? `<p class="text-center py-10 text-gray-400 text-[10px] font-black">Sin cuotas pendientes</p>` : "";
+    let pagado = 0, pendiente = 0;
+    
+    contC.innerHTML = "";
     snapC.forEach(d => {
         const c = d.data();
-        contC.innerHTML += `
-            <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
-                <div>
-                    <p class="font-black text-gray-400 text-[9px]">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p>
-                    <p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
-                </div>
-                <button onclick="cobrarWhatsApp('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px]">COBRAR</button>
-            </div>`;
+        if (c.estado === "pagado") {
+            pagado += c.monto;
+        } else {
+            pendiente += c.monto;
+            contC.innerHTML += `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center">
+                    <div>
+                        <p class="font-black text-gray-400 text-[9px]">CUOTA #${c.n} | ${c.fecha.toDate().toLocaleDateString()}</p>
+                        <p class="text-blue-600 font-black text-lg">$${c.monto.toFixed(2)}</p>
+                    </div>
+                    <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px]">COBRAR</button>
+                </div>`;
+        }
     });
+    
+    document.getElementById('c-pagado').innerText = `$${pagado.toFixed(2)}`;
+    document.getElementById('c-pendiente').innerText = `$${pendiente.toFixed(2)}`;
 };
 
-// --- FUNCIÓN RECIBO WHATSAPP ---
-window.cobrarWhatsApp = async (id, cid, cnom, ctel, monto, n) => {
-    if (!confirm("¿Confirmar cobro y enviar recibo por WhatsApp?")) return;
+// --- FUNCIÓN DE COBRO (ESTA ES LA CLAVE) ---
+window.registrarCobro = async (id, cid, cnom, ctel, monto, n) => {
+    if (!confirm(`¿Cobrar Cuota #${n} de $${monto}?`)) return;
+    
+    // Solo actualizamos esta cuota específica
     await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
     
-    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A------------------------------%0A👤 *Cliente:* ${cnom}%0A💰 *Monto Pagado:* $${monto}%0A🔢 *Cuota:* #${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Estado:* PAGADO%0A------------------------------%0A¡Gracias por su puntualidad!`;
-    const waLink = `https://wa.me/${ctel}?text=${msg}`;
+    // Recibo automático WhatsApp
+    const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cnom}%0A💰 *Cuota Pagada:* $${monto}%0A🔢 *Cuota Nro:* ${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}%0A✅ *Saldo actualizado en sistema.*`;
+    window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
     
-    window.open(waLink, '_blank');
     verDetalleCliente(cid, cnom, ctel);
 };
 
-// --- RESTO DE FUNCIONES (PRÉSTAMOS, COBROS, MOROSOS) ---
+// --- RESTO DE MÓDULOS (PRESTAMOS, COBROS, MOROSOS) ---
 async function renderPrestamos() {
-    pageTitle.innerText = "Historial de Préstamos";
+    pageTitle.innerText = "Todos los Préstamos";
     mainContent.innerHTML = `<div id="lista-p" class="space-y-4 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lista-p');
-    if (snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase">Sin préstamos.</p>`; return; }
+    if (snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 uppercase font-black text-xs">Sin registros</p>`; return; }
     for (const d of snap.docs) {
         const p = d.data(); const cliSnap = await getDoc(doc(db, "clientes", p.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-sm border mb-3 flex justify-between items-center">
-            <div><p class="text-[9px] font-black text-gray-400 uppercase">${cliSnap.data().nombre}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p></div>
+            <div><p class="text-[9px] font-black text-gray-400 uppercase tracking-widest">${cliSnap.data().nombre}</p><p class="text-2xl font-black text-blue-600">$${p.total.toFixed(2)}</p><p class="text-[8px] font-bold text-gray-400 uppercase">Cap: $${p.monto} | Int: ${p.interes}%</p></div>
             <button onclick="eliminarPrestamo('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash"></i></button>
         </div>`;
     }
 }
 
 window.eliminarPrestamo = async (id) => {
-    if (!confirm("¿Borrar préstamo?")) return;
+    if (!confirm("¿Eliminar préstamo?")) return;
     await deleteDoc(doc(db, "prestamos", id));
     const s = await getDocs(query(collection(db, "cuotas"), where("prestamoId", "==", id)));
     s.forEach(async (c) => await deleteDoc(doc(db, "cuotas", c.id)));
@@ -260,33 +280,33 @@ window.eliminarPrestamo = async (id) => {
 };
 
 async function renderCobros() {
-    pageTitle.innerText = "Cobros de Hoy";
+    pageTitle.innerText = "Hoy";
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lc');
-    cont.innerHTML = snap.empty ? `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Todo cobrado por hoy 🏖️</p>` : "";
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs">Día libre🏖️</p>`; return; }
     for (const d of snap.docs) {
         const cuota = d.data(); const cliSnap = await getDoc(doc(db, "clientes", cuota.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center">
             <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-blue-600 font-black text-2xl">$${cuota.monto.toFixed(2)}</p></div>
-            <button onclick="cobrarWhatsApp('${d.id}', '${cuota.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${cuota.monto}', '${cuota.n}')" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
+            <button onclick="registrarCobro('${d.id}', '${cuota.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${cuota.monto.toFixed(2)}', '${cuota.n}')" class="bg-green-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
         </div>`;
     }
 }
 
 async function renderMorosos() {
-    pageTitle.innerText = "Morosos";
+    pageTitle.innerText = "Atrasados";
     const hoy = new Date(); hoy.setHours(0,0,0,0);
     mainContent.innerHTML = `<div id="lm" class="space-y-3 pb-24"></div>`;
     const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "<", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lm');
-    cont.innerHTML = snap.empty ? `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Sin morosos 👏</p>` : "";
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-xs">Todo al día👏</p>`; return; }
     for (const d of snap.docs) {
         const c = d.data(); const cliSnap = await getDoc(doc(db, "clientes", c.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-red-600 flex justify-between items-center">
             <div><p class="font-black text-gray-400 uppercase text-[9px]">${cliSnap.data().nombre}</p><p class="text-red-600 font-black text-2xl">$${c.monto.toFixed(2)}</p></div>
-            <button onclick="cobrarWhatsApp('${d.id}', '${c.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${c.monto}', '${c.n}')" class="bg-red-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
+            <button onclick="registrarCobro('${d.id}', '${c.clienteId}', '${cliSnap.data().nombre}', '${cliSnap.data().telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-red-600 text-white px-6 py-3 rounded-2xl font-black">COBRAR</button>
         </div>`;
     }
 }
@@ -305,8 +325,12 @@ async function guardarPrestamo(e) {
             else if (mod === "mensual") f.setMonth(f.getMonth() + j);
             await addDoc(collection(db, "cuotas"), { prestamoId: pref.id, clienteId: cid, n: j, monto: vc, fecha: Timestamp.fromDate(f), estado: "pendiente", cobradorId: auth.currentUser.uid });
         }
-        alert("PRÉSTAMO CREADO"); router('dashboard');
+        alert("CREADO"); router('dashboard');
     } catch (err) { alert("Error"); b.disabled = false; }
 }
 
-btnLogout.onclick = () => { if(confirm("¿Cerrar sesión?")) signOut(auth); };
+window.abrirModalCliente = () => { document.getElementById('mod-c').classList.remove('hidden'); document.getElementById('cid-edit').value = ""; document.getElementById('f-c').reset(); };
+window.prepararEdicion = (id, n, t) => { document.getElementById('mod-c').classList.remove('hidden'); document.getElementById('cid-edit').value = id; document.getElementById('cnom').value = n; document.getElementById('ctel').value = t; };
+async function guardarOActualizarCliente(e) { e.preventDefault(); const id = document.getElementById('cid-edit').value, n = document.getElementById('cnom').value, t = document.getElementById('ctel').value; if(id) await updateDoc(doc(db, "clientes", id), {nombre: n, telefono: t}); else await addDoc(collection(db, "clientes"), {nombre: n, telefono: t, cobradorId: auth.currentUser.uid, fecha: new Date()}); document.getElementById('mod-c').classList.add('hidden'); renderClientes(); }
+window.eliminarCliente = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "clientes", id)); renderClientes(); } };
+btnLogout.onclick = () => signOut(auth);
