@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, getDoc, deleteDoc, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, getDoc, deleteDoc, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { firebaseConfig } from './firebase-config.js';
 
@@ -12,17 +12,14 @@ const pageTitle = document.getElementById('page-title');
 const bottomNav = document.getElementById('bottom-nav');
 const btnLogout = document.getElementById('btn-logout');
 
-// --- NAVEGACIÓN ---
+// --- SISTEMA DE NAVEGACIÓN ---
 window.router = (route) => {
     mainContent.innerHTML = `<div class="flex justify-center py-20"><div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div></div>`;
-    setTimeout(() => {
-        if (route === 'dashboard') renderDashboard();
-        if (route === 'clientes') renderClientes();
-        if (route === 'prestamos') renderPrestamos();
-        if (route === 'cobros') renderCobros();
-        if (route === 'morosos') renderMorosos();
-        if (route === 'reportes') renderReportes();
-    }, 50);
+    if (route === 'dashboard') renderDashboard();
+    if (route === 'clientes') renderClientes();
+    if (route === 'prestamos') renderPrestamos();
+    if (route === 'cobros') renderCobros();
+    if (route === 'morosos') renderMorosos();
 };
 
 onAuthStateChanged(auth, (user) => {
@@ -37,25 +34,26 @@ onAuthStateChanged(auth, (user) => {
     }
 });
 
+// --- VISTA: LOGIN ---
 function renderLogin() {
     pageTitle.innerText = "Entrar";
     mainContent.innerHTML = `
         <div class="max-w-md mx-auto bg-white p-8 rounded-[2rem] shadow-xl mt-6 text-center border-b-4 border-blue-600">
             <h2 class="text-3xl font-black text-blue-600 mb-6 uppercase italic">Siscop</h2>
             <form id="login-form" class="space-y-4 text-left">
-                <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none focus:border-blue-600" required>
-                <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none focus:border-blue-600" required>
-                <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg">Ingresar</button>
+                <input type="email" id="l-email" placeholder="Correo" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
+                <input type="password" id="l-pass" placeholder="Contraseña" class="w-full p-4 border rounded-2xl font-bold bg-gray-50 outline-none" required>
+                <button type="submit" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black uppercase shadow-lg active:scale-95 transition-all">Entrar</button>
             </form>
         </div>`;
     document.getElementById('login-form').onsubmit = async (e) => {
         e.preventDefault();
         try { await signInWithEmailAndPassword(auth, document.getElementById('l-email').value, document.getElementById('l-pass').value); } 
-        catch (error) { alert("Error: " + error.message); }
+        catch (error) { alert("Error de acceso"); }
     };
 }
 
-// --- DASHBOARD (CÁLCULOS CORREGIDOS) ---
+// --- VISTA: DASHBOARD ---
 async function renderDashboard() {
     pageTitle.innerText = "Siscop";
     mainContent.innerHTML = `
@@ -65,88 +63,70 @@ async function renderDashboard() {
                 <p id="s-cobrado" class="text-xl font-black text-green-600">$0.00</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-500">
-                <p class="text-gray-400 text-[9px] font-black uppercase">Por Cobrar Hoy</p>
+                <p class="text-gray-400 text-[9px] font-black uppercase">Por Cobrar</p>
                 <p id="s-acobrar" class="text-xl font-black text-blue-500">$0.00</p>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-orange-500">
                 <p class="text-gray-400 text-[9px] font-black uppercase">Ganancia Hoy</p>
                 <p id="s-ganancia" class="text-xl font-black text-orange-500">$0.00</p>
             </div>
-            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-red-500">
-                <p class="text-gray-400 text-[9px] font-black uppercase">Deuda en Calle</p>
-                <p id="s-total" class="text-xl font-black text-red-500">$0.00</p>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-red-600">
+                <p class="text-gray-400 text-[9px] font-black uppercase">Deuda Calle</p>
+                <p id="s-total" class="text-xl font-black text-red-600">$0.00</p>
             </div>
         </div>
-        <div class="px-2">
-            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-5 rounded-3xl font-black shadow-lg mb-4 uppercase tracking-widest active:scale-95 transition-all">
-                <i class="fas fa-calendar-check mr-2"></i> Cobros de Hoy
-            </button>
-            <button onclick="router('prestamos')" class="w-full bg-white border-2 p-5 rounded-3xl font-black text-gray-700 shadow-sm active:scale-95 transition-all uppercase text-xs">
-                <i class="fas fa-history mr-2 text-blue-600"></i> Historial de Préstamos
-            </button>
+        <div class="px-2 space-y-3">
+            <button onclick="router('cobros')" class="w-full bg-blue-600 text-white p-5 rounded-3xl font-black shadow-lg uppercase active:scale-95 transition-all">Cobros de Hoy</button>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="router('clientes')" class="bg-white border p-4 rounded-2xl font-bold text-[10px] uppercase shadow-sm">Clientes</button>
+                <button onclick="router('prestamos')" class="bg-white border p-4 rounded-2xl font-bold text-[10px] uppercase shadow-sm">Préstamos</button>
+            </div>
         </div>`;
 
-    try {
-        const hoy = new Date(); hoy.setHours(0,0,0,0);
-        const qC = query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid));
-        const snapC = await getDocs(qC);
-        
-        let cobHoy = 0, acobHoy = 0, ganHoy = 0, deudaCalle = 0;
+    const hoy = new Date(); hoy.setHours(0,0,0,0);
+    const snapC = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid)));
+    let cob = 0, acob = 0, gan = 0, totalCalle = 0;
 
-        snapC.forEach(d => {
-            const c = d.data();
-            const f = c.fecha.toDate(); f.setHours(0,0,0,0);
-            
-            // 1. Calcular Deuda en Calle (Todo lo pendiente del mundo)
-            if (c.estado === "pendiente") {
-                deudaCalle += c.monto;
-                // 2. Calcular lo que toca cobrar hoy
-                if (f.getTime() === hoy.getTime()) {
-                    acobHoy += c.monto;
-                }
-            } 
-            // 3. Calcular lo cobrado hoy y su ganancia
-            else if (c.estado === "pagado" && f.getTime() === hoy.getTime()) {
-                cobHoy += c.monto;
-                ganHoy += (c.monto * 0.166); // Interés aproximado
-            }
-        });
-
-        document.getElementById('s-cobrado').innerText = `$${cobHoy.toFixed(2)}`;
-        document.getElementById('s-acobrar').innerText = `$${acobHoy.toFixed(2)}`;
-        document.getElementById('s-ganancia').innerText = `$${ganHoy.toFixed(2)}`;
-        document.getElementById('s-total').innerText = `$${deudaCalle.toFixed(2)}`;
-    } catch (e) { console.error("Error Dashboard:", e); }
+    snapC.forEach(d => {
+        const c = d.data();
+        if(!c.fecha) return;
+        const f = c.fecha.toDate(); f.setHours(0,0,0,0);
+        if (c.estado === "pendiente") {
+            totalCalle += c.monto;
+            if (f.getTime() === hoy.getTime()) acob += c.monto;
+        } else if (c.estado === "pagado" && f.getTime() === hoy.getTime()) {
+            cob += c.monto;
+            gan += (c.monto * 0.166);
+        }
+    });
+    document.getElementById('s-cobrado').innerText = `$${cob.toFixed(2)}`;
+    document.getElementById('s-acobrar').innerText = `$${acob.toFixed(2)}`;
+    document.getElementById('s-ganancia').innerText = `$${gan.toFixed(2)}`;
+    document.getElementById('s-total').innerText = `$${totalCalle.toFixed(2)}`;
 }
 
-// --- CLIENTES ---
+// --- MÓDULO CLIENTES ---
 function renderClientes() {
-    pageTitle.innerText = "Clientes";
+    pageTitle.innerText = "Directorio";
     mainContent.innerHTML = `
-        <div class="flex gap-2 mb-4">
+        <div class="flex gap-2 mb-4 px-2">
             <input type="text" id="busc-cli" placeholder="Buscar..." class="w-full p-4 border rounded-2xl font-bold">
             <button onclick="abrirModalCliente()" class="bg-blue-600 text-white p-4 rounded-2xl shadow-lg"><i class="fas fa-plus"></i></button>
         </div>
-        <div id="lista-c" class="space-y-2 pb-24"></div>
+        <div id="lista-c" class="space-y-2 pb-24 px-2"></div>
         <div id="mod-c" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl">
+            <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl">
                 <form id="f-c" class="space-y-4">
-                    <h3 id="mod-c-title" class="font-black text-center uppercase text-gray-700">Nuevo Cliente</h3>
+                    <h3 id="mod-c-title" class="font-black text-center uppercase">Cliente</h3>
                     <input type="hidden" id="cid-edit">
-                    <input type="text" id="cnom" placeholder="Nombre completo" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <input type="tel" id="ctel" placeholder="Teléfono" class="w-full p-4 border rounded-xl font-bold bg-gray-50" required>
-                    <button type="submit" id="mod-c-btn" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase">Guardar</button>
+                    <input type="text" id="cnom" placeholder="Nombre" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                    <input type="tel" id="ctel" placeholder="WhatsApp" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                    <button type="submit" id="mod-c-btn" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Guardar</button>
                     <button type="button" onclick="document.getElementById('mod-c').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-[10px] mt-2">Cerrar</button>
                 </form>
             </div>
         </div>`;
     cargarClientes();
-    document.getElementById('busc-cli').oninput = (e) => {
-        const val = e.target.value.toLowerCase();
-        document.querySelectorAll('.tarjeta-cliente').forEach(el => {
-            el.style.display = el.innerText.toLowerCase().includes(val) ? "flex" : "none";
-        });
-    };
     document.getElementById('f-c').onsubmit = guardarOActualizarCliente;
 }
 
@@ -157,40 +137,26 @@ async function cargarClientes() {
     snap.forEach(d => {
         const c = d.data();
         cont.innerHTML += `
-        <div class="tarjeta-cliente bg-white p-4 rounded-2xl border flex justify-between items-center mb-2 shadow-sm">
+        <div class="bg-white p-4 rounded-2xl border flex justify-between items-center mb-2 shadow-sm animate-nudge">
             <div onclick="verDetalleCliente('${d.id}', '${c.nombre}', '${c.telefono}')" class="flex-1 cursor-pointer">
                 <p class="font-black text-gray-800 uppercase text-sm">${c.nombre}</p>
                 <p class="text-[10px] text-gray-400 font-bold">${c.telefono}</p>
             </div>
             <div class="flex gap-2">
-                <button onclick="prepararEdicion('${d.id}', '${c.nombre}', '${c.telefono}')" class="text-blue-500 bg-blue-50 w-10 h-10 rounded-full"><i class="fas fa-edit"></i></button>
-                <button onclick="eliminarCliente('${d.id}')" class="text-red-400 bg-red-50 w-10 h-10 rounded-full"><i class="fas fa-trash"></i></button>
+                <button onclick="prepararEdicion('${d.id}', '${c.nombre}', '${c.telefono}')" class="text-blue-500 bg-blue-50 w-10 h-10 rounded-full flex items-center justify-center"><i class="fas fa-edit"></i></button>
+                <button onclick="eliminarCliente('${d.id}')" class="text-red-400 bg-red-50 w-10 h-10 rounded-full flex items-center justify-center"><i class="fas fa-trash"></i></button>
             </div>
         </div>`;
     });
 }
 
-async function guardarOActualizarCliente(e) {
-    e.preventDefault();
-    const id = document.getElementById('cid-edit').value;
-    const datos = { nombre: document.getElementById('cnom').value, telefono: document.getElementById('ctel').value, cobradorId: auth.currentUser.uid, fecha: new Date() };
-    try {
-        if (id) await updateDoc(doc(db, "clientes", id), { nombre: datos.nombre, telefono: datos.telefono });
-        else await addDoc(collection(db, "clientes"), datos);
-        document.getElementById('mod-c').classList.add('hidden');
-        renderClientes();
-    } catch (error) { alert("Error"); }
-}
-
-// --- MÓDULO PRÉSTAMOS INFORMATIVO ---
+// --- MÓDULO PRÉSTAMOS ---
 async function renderPrestamos() {
     pageTitle.innerText = "Historial";
     mainContent.innerHTML = `<div id="lista-p" class="space-y-4 pb-24 px-2"></div>`;
     const cont = document.getElementById('lista-p');
-    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid), orderBy("fecha", "desc")));
+    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
     
-    if (snapP.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 uppercase font-black text-xs">Sin préstamos</p>`; return; }
-
     for (const d of snapP.docs) {
         const p = d.data();
         const cliS = await getDoc(doc(db, "clientes", p.clienteId));
@@ -203,77 +169,74 @@ async function renderPrestamos() {
             <div class="bg-white p-5 rounded-[2rem] shadow-sm border border-gray-100 mb-3">
                 <div class="flex justify-between items-start mb-2">
                     <div><p class="text-blue-600 font-black uppercase text-xs">${cliS.exists() ? cliS.data().nombre : '---'}</p><p class="text-[9px] font-bold text-gray-400 uppercase">${p.modalidad}</p></div>
-                    <button onclick="eliminarPrestamo('${d.id}')" class="text-red-300"><i class="fas fa-trash-alt"></i></button>
+                    <button onclick="eliminarPrestamo('${d.id}')" class="text-red-300 p-2"><i class="fas fa-trash-alt"></i></button>
                 </div>
                 <div class="flex justify-between items-end border-t pt-2">
-                    <div><p class="text-[9px] font-black text-gray-400 uppercase">Saldo</p><p class="text-xl font-black text-gray-800">$${saldo.toFixed(2)}</p></div>
-                    <p class="text-xs font-black text-green-600">${pagadas} / ${snapC.size} <span class="text-[9px] text-gray-400">Cuotas</span></p>
+                    <div><p class="text-[9px] font-black text-gray-400 uppercase">Deben aún</p><p class="text-xl font-black text-gray-800">$${saldo.toFixed(2)}</p></div>
+                    <p class="text-xs font-black text-green-600">${pagadas} / ${snapC.size} <span class="text-[9px] text-gray-400 uppercase">Cuotas</span></p>
                 </div>
             </div>`;
     }
 }
 
-// --- PERFIL Y COBROS ---
+// --- FUNCIONES DE ACCIÓN ---
+async function guardarOActualizarCliente(e) {
+    e.preventDefault();
+    const id = document.getElementById('cid-edit').value;
+    const datos = { nombre: document.getElementById('cnom').value, telefono: document.getElementById('ctel').value, cobradorId: auth.currentUser.uid, fecha: new Date() };
+    if (id) await updateDoc(doc(db, "clientes", id), { nombre: datos.nombre, telefono: datos.telefono });
+    else await addDoc(collection(db, "clientes"), datos);
+    document.getElementById('mod-c').classList.add('hidden');
+    renderClientes();
+}
+
+window.registrarCobro = async (id, cid, cnom, ctel, monto, n) => {
+    if (!confirm(`Cobrar cuota #${n}?`)) return;
+    await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
+    const msg = `🧾 *SISCOP* Recibo de Pago%0A👤 ${cnom}%0A💰 $${monto}%0A🔢 Cuota #${n}`;
+    window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
+    verDetalleCliente(cid, cnom, ctel);
+};
+
 window.verDetalleCliente = async (id, nombre, telefono) => {
-    pageTitle.innerText = "Detalle";
-    mainContent.innerHTML = `
-        <div class="space-y-4 pb-24 px-2">
-            <div class="bg-white p-8 rounded-[2.5rem] shadow-xl text-center border-b-4 border-blue-600">
-                <h3 class="font-black text-xl text-gray-800 uppercase mb-4">${nombre}</h3>
-                <div class="flex gap-2">
-                    <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs shadow-lg">+ PRÉSTAMO</button>
-                    <a href="https://wa.me/${telefono}" class="bg-green-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><i class="fab fa-whatsapp text-lg"></i></a>
-                </div>
+    pageTitle.innerText = "Perfil";
+    mainContent.innerHTML = `<div class="p-4 space-y-4 pb-24 px-2">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-xl text-center border-b-4 border-blue-600">
+            <h3 class="font-black text-xl text-gray-800 uppercase mb-4">${nombre}</h3>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('mod-p').classList.remove('hidden')" class="flex-1 bg-blue-600 text-white p-4 rounded-2xl font-black text-xs shadow-lg">+ PRÉSTAMO</button>
+                <a href="https://wa.me/${telefono}" class="bg-green-500 text-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"><i class="fab fa-whatsapp"></i></a>
             </div>
-            <div id="lista-cuotas-cliente" class="space-y-2"></div>
         </div>
-
-        <div id="mod-p" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
-            <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
-                <form id="f-p" class="space-y-3">
-                    <input type="hidden" id="pid" value="${id}">
-                    <label class="text-[10px] font-black text-gray-400 uppercase ml-2">Monto ($)</label>
-                    <input type="number" id="p_m" placeholder="5000" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase ml-2">Interés (%)</label>
-                    <input type="number" id="p_i" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase ml-2">Cuotas</label>
-                    <input type="number" id="p_c" value="20" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
-                    <label class="text-[10px] font-black text-gray-400 uppercase ml-2">Frecuencia</label>
-                    <select id="p_mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none">
-                        <option value="Diario">Diario</option>
-                        <option value="Semanal">Semanal</option>
-                        <option value="Quincenal">Quincenal</option>
-                        <option value="Mensual">Mensual</option>
-                    </select>
-                    <button type="submit" id="btn-p" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Crear</button>
-                    <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold text-[10px] uppercase py-2">Cerrar</button>
-                </form>
-            </div>
-        </div>`;
-
+        <div id="lista-cuotas-cliente" class="space-y-2"></div>
+    </div>
+    <div id="mod-p" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl overflow-y-auto max-h-[90vh]">
+            <form id="f-p" class="space-y-3">
+                <input type="hidden" id="pid" value="${id}">
+                <input type="number" id="p_m" placeholder="Monto $" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                <input type="number" id="p_i" value="20" placeholder="Interés %" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                <input type="number" id="p_c" value="20" placeholder="Cuotas" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none" required>
+                <select id="p_mod" class="w-full p-4 border rounded-xl font-bold bg-gray-50 outline-none">
+                    <option value="Diario">Diario</option><option value="Semanal">Semanal</option><option value="Quincenal">Quincenal</option><option value="Mensual">Mensual</option>
+                </select>
+                <button type="submit" id="btn-p" class="w-full bg-blue-600 text-white p-4 rounded-xl font-black uppercase shadow-lg">Crear</button>
+                <button type="button" onclick="document.getElementById('mod-p').classList.add('hidden')" class="w-full text-gray-400 font-bold uppercase text-[10px] mt-2">Cerrar</button>
+            </form>
+        </div>
+    </div>`;
     document.getElementById('f-p').onsubmit = guardarPrestamo;
     const snapC = await getDocs(query(collection(db, "cuotas"), where("clienteId", "==", id), orderBy("n", "asc")));
     const contC = document.getElementById('lista-cuotas-cliente');
     snapC.forEach(d => {
         const c = d.data();
         if (c.estado === "pendiente") {
-            contC.innerHTML += `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2">
-                    <p class="font-black text-gray-800 text-sm">$${c.monto.toFixed(2)} <span class="text-[9px] text-gray-400 ml-2">#${c.n}</span></p>
-                    <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px]">COBRAR</button>
-                </div>`;
+            contC.innerHTML += `<div class="bg-white p-4 rounded-2xl shadow-sm border flex justify-between items-center mb-2 animate-nudge">
+                <p class="font-black text-gray-800 text-sm">$${c.monto.toFixed(2)} <span class="text-[9px] text-gray-400 ml-2">#${c.n}</span></p>
+                <button onclick="registrarCobro('${d.id}', '${id}', '${nombre}', '${telefono}', '${c.monto.toFixed(2)}', '${c.n}')" class="bg-green-600 text-white px-5 py-2 rounded-xl font-black text-[10px] shadow-md">COBRAR</button>
+            </div>`;
         }
     });
-};
-
-window.registrarCobro = async (id, cid, cnom, ctel, monto, n) => {
-    if (!confirm(`¿Cobrar $${monto}?`)) return;
-    try {
-        await updateDoc(doc(db, "cuotas", id), { estado: "pagado" });
-        const msg = `🧾 *SISCOP - RECIBO DE PAGO*%0A👤 *Cliente:* ${cnom}%0A💰 *Monto:* $${monto}%0A🔢 *Cuota:* #${n}%0A📅 *Fecha:* ${new Date().toLocaleDateString()}`;
-        window.open(`https://wa.me/${ctel}?text=${msg}`, '_blank');
-        verDetalleCliente(cid, cnom, ctel);
-    } catch (e) { alert("Error"); }
 };
 
 async function renderCobros() {
@@ -282,7 +245,7 @@ async function renderCobros() {
     mainContent.innerHTML = `<div id="lc" class="space-y-3 pb-24 px-2"></div>`;
     const snap = await getDocs(query(collection(db, "cuotas"), where("fecha", "==", Timestamp.fromDate(hoy)), where("estado", "==", "pendiente"), where("cobradorId", "==", auth.currentUser.uid)));
     const cont = document.getElementById('lc');
-    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-black uppercase text-[10px]">Libre por hoy🏖️</p>`; return; }
+    if(snap.empty) { cont.innerHTML = `<p class="text-center py-20 text-gray-400 font-bold uppercase text-[10px]">Libre hoy🏖️</p>`; return; }
     for (const d of snap.docs) {
         const c = d.data(); const cliSnap = await getDoc(doc(db, "clientes", c.clienteId));
         cont.innerHTML += `<div class="bg-white p-5 rounded-3xl shadow-md border-l-8 border-blue-600 flex justify-between items-center mb-2">
@@ -310,28 +273,6 @@ async function renderMorosos() {
     }
 }
 
-async function renderReportes() {
-    pageTitle.innerText = "Reportes";
-    mainContent.innerHTML = `<div class="text-center py-20 uppercase font-black text-gray-300">Cargando...</div>`;
-    const snapP = await getDocs(query(collection(db, "prestamos"), where("cobradorId", "==", auth.currentUser.uid)));
-    const snapC = await getDocs(query(collection(db, "cuotas"), where("cobradorId", "==", auth.currentUser.uid), where("estado", "==", "pagado")));
-    let tInvertido = 0, tCobrado = 0;
-    snapP.forEach(d => tInvertido += d.data().total || 0);
-    snapC.forEach(d => tCobrado += d.data().monto);
-    mainContent.innerHTML = `
-        <div class="space-y-4 pb-24 px-2">
-            <div class="bg-white p-8 rounded-[2rem] shadow-xl border-t-8 border-blue-600 text-center">
-                <p class="text-[10px] font-black text-gray-400 uppercase mb-2">Capital Invertido Total</p>
-                <p class="text-4xl font-black text-blue-600">$${tInvertido.toFixed(2)}</p>
-            </div>
-            <div class="bg-white p-8 rounded-[2rem] shadow-xl border-t-8 border-green-500 text-center">
-                <p class="text-[10px] font-black text-gray-400 uppercase mb-2">Dinero Cobrado Total</p>
-                <p class="text-4xl font-black text-green-600">$${tCobrado.toFixed(2)}</p>
-            </div>
-            <button onclick="router('dashboard')" class="w-full text-gray-400 font-black uppercase text-[10px] py-4 underline">Vovler</button>
-        </div>`;
-}
-
 async function guardarPrestamo(e) {
     e.preventDefault();
     const b = document.getElementById('btn-p'); b.disabled = true; b.innerText = "...";
@@ -353,7 +294,6 @@ async function guardarPrestamo(e) {
 
 window.abrirModalCliente = () => { document.getElementById('mod-c').classList.remove('hidden'); document.getElementById('cid-edit').value = ""; document.getElementById('f-c').reset(); };
 window.prepararEdicion = (id, n, t) => { document.getElementById('mod-c').classList.remove('hidden'); document.getElementById('cid-edit').value = id; document.getElementById('cnom').value = n; document.getElementById('ctel').value = t; };
-async function guardarOActualizarCliente(e) { e.preventDefault(); const id = document.getElementById('cid-edit').value, n = document.getElementById('cnom').value, t = document.getElementById('ctel').value; if(id) await updateDoc(doc(db, "clientes", id), {nombre: n, telefono: t}); else await addDoc(collection(db, "clientes"), {nombre: n, telefono: t, cobradorId: auth.currentUser.uid, fecha: new Date()}); document.getElementById('mod-c').classList.add('hidden'); renderClientes(); }
 window.eliminarCliente = async (id) => { if(confirm("¿Borrar?")) { await deleteDoc(doc(db, "clientes", id)); renderClientes(); } };
 window.eliminarPrestamo = async (id) => { if(confirm("¿Borrar Préstamo?")) { await deleteDoc(doc(db, "prestamos", id)); const s = await getDocs(query(collection(db, "cuotas"), where("prestamoId", "==", id))); s.forEach(async (c) => await deleteDoc(doc(db, "cuotas", c.id))); renderPrestamos(); } };
 btnLogout.onclick = () => signOut(auth);
